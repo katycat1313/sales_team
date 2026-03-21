@@ -315,6 +315,25 @@ def get_prospects_list(stage: str = None, priority: str = None):
     from memory.memory import get_prospects
     return get_prospects(stage=stage, priority=priority)
 
+@app.patch("/prospects/{prospect_id}")
+def patch_prospect(prospect_id: int, body: dict):
+    """Update any fields on a prospect by ID."""
+    from memory.memory import get_db
+    allowed = {"owner_name","phone","email","website","priority","pipeline_stage",
+               "research_notes","notes","niche","outreach_draft"}
+    updates = {k:v for k,v in body.items() if k in allowed and v is not None}
+    if not updates:
+        return {"updated": False, "reason": "no valid fields"}
+    conn = get_db()
+    set_clause = ", ".join(f"{k}=?" for k in updates)
+    set_clause += ", updated_at=datetime('now')"
+    conn.execute(f"UPDATE prospects SET {set_clause} WHERE id=?",
+                 list(updates.values()) + [prospect_id])
+    conn.commit()
+    conn.close()
+    log_event("system", "action", f"Prospect {prospect_id} updated: {list(updates.keys())}")
+    return {"updated": True, "id": prospect_id, "fields": list(updates.keys())}
+
 @app.delete("/prospects/{prospect_id}")
 def delete_prospect(prospect_id: int):
     from memory.memory import get_db
