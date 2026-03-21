@@ -176,8 +176,9 @@ body{display:grid;grid-template-columns:56px 1fr}
 <nav class="rail">
   <div class="rail-mark">K</div>
   <div class="ri on" onclick="nav('home',this)">⌂<div class="tt">home</div></div>
-  <div class="ri" onclick="nav('missions',this)">◎<div class="tt">missions</div><div class="ri-pip"></div></div>
+  <div class="ri" onclick="nav('prospects',this)">☎<div class="tt">prospects</div><div class="ri-pip" id="pip-prospects"></div></div>
   <div class="ri" onclick="nav('outbox',this)">⬡<div class="tt">outbox</div><div class="ri-pip"></div></div>
+  <div class="ri" onclick="nav('missions',this)">◎<div class="tt">missions</div><div class="ri-pip"></div></div>
   <div class="ri" onclick="nav('intel',this)">◈<div class="tt">intel</div></div>
   <div class="ri" onclick="nav('playbook',this)">▷<div class="tt">playbook</div></div>
   <div class="rail-sep"></div>
@@ -197,11 +198,28 @@ body{display:grid;grid-template-columns:56px 1fr}
   <div class="headline">Command<br>Center</div>
   <div class="sub">Your 15-agent team is active and working.</div>
   <div class="stats mb24">
-    <div class="stat"><div class="stat-v c-teal" id="s-agents">24</div><div class="stat-l">agents<br>online</div></div>
+    <div class="stat"><div class="stat-v c-teal" id="s-agents">—</div><div class="stat-l">agents<br>online</div></div>
     <div class="stat"><div class="stat-v c-gold" id="s-appr">—</div><div class="stat-l">pending<br>approvals</div></div>
-    <div class="stat"><div class="stat-v c-violet" id="s-jobs">—</div><div class="stat-l">jobs in<br>memory</div></div>
-    <div class="stat"><div class="stat-v c-sky" id="s-contacts">—</div><div class="stat-l">contacts<br>found</div></div>
+    <div class="stat"><div class="stat-v c-green" id="s-prospects">—</div><div class="stat-l">prospects<br>found</div></div>
+    <div class="stat"><div class="stat-v c-ember" id="s-hot">—</div><div class="stat-l">hot<br>leads</div></div>
     <div class="stat"><div class="stat-v c-ink3" id="s-events">0</div><div class="stat-l">events<br>logged</div></div>
+  </div>
+  <div style="display:flex;gap:10px;margin-bottom:28px;flex-wrap:wrap">
+    <a href="https://docs.google.com/spreadsheets" target="_blank" id="sheets-link"
+       style="display:flex;align-items:center;gap:8px;background:#0f9d58;color:white;padding:10px 18px;border-radius:8px;text-decoration:none;font-size:13px;font-weight:500;transition:opacity .15s"
+       onmouseover="this.style.opacity='.8'" onmouseout="this.style.opacity='1'">
+      <span style="font-size:16px">📊</span> View Prospect Sheet
+    </a>
+    <button onclick="nav('prospects',document.querySelector('.ri[onclick*=prospects]'))"
+       style="display:flex;align-items:center;gap:8px;background:var(--g3);color:var(--ink);padding:10px 18px;border-radius:8px;border:1px solid var(--rim2);font-size:13px;cursor:pointer;transition:opacity .15s"
+       onmouseover="this.style.opacity='.8'" onmouseout="this.style.opacity='1'">
+      <span style="font-size:16px">☎</span> Call List
+    </button>
+    <button onclick="triggerScan()"
+       style="display:flex;align-items:center;gap:8px;background:var(--g3);color:var(--ink);padding:10px 18px;border-radius:8px;border:1px solid var(--rim2);font-size:13px;cursor:pointer;transition:opacity .15s"
+       onmouseover="this.style.opacity='.8'" onmouseout="this.style.opacity='1'">
+      <span id="scan-ico">🔍</span> <span id="scan-lbl">Scan for Prospects</span>
+    </button>
   </div>
 
   <!-- COMMAND TEAM -->
@@ -337,6 +355,82 @@ body{display:grid;grid-template-columns:56px 1fr}
 </div></div>
 
 <!-- INTEL -->
+<!-- PROSPECTS PAGE -->
+<div class="pg" id="pg-prospects"><div class="pg-inner">
+  <div class="eyebrow">call list</div>
+  <div class="headline">Prospects</div>
+  <div class="sub">Real businesses with real phone numbers. Click Call to have Eric dial them.</div>
+
+  <div style="display:flex;gap:10px;margin-bottom:16px;flex-wrap:wrap;align-items:center">
+    <a href="https://docs.google.com/spreadsheets/d/12PoYqddT3FzQAlvL871cR4kUfk3X37M_qO10oT2V65c/edit" target="_blank"
+       style="display:flex;align-items:center;gap:8px;background:#0f9d58;color:white;padding:9px 16px;border-radius:8px;text-decoration:none;font-size:13px;font-weight:500">
+      📊 Google Sheet
+    </a>
+    <button onclick="loadProspects()" style="background:var(--g3);color:var(--ink);padding:9px 16px;border-radius:8px;border:1px solid var(--rim2);font-size:13px;cursor:pointer">↺ Refresh</button>
+    <select id="filter-priority" onchange="loadProspects()" style="background:var(--g3);color:var(--ink);padding:9px 12px;border-radius:8px;border:1px solid var(--rim2);font-size:13px;cursor:pointer">
+      <option value="">All</option>
+      <option value="CALLABLE" selected>📞 Ready to Call (score &lt;5)</option>
+      <option value="HOT">🔥 HOT only</option>
+      <option value="WARM">🌤 WARM only</option>
+    </select>
+    <span id="prospect-count" style="color:var(--ink3);font-size:12px"></span>
+  </div>
+
+  <!-- LIVE CALL MONITOR -->
+  <div id="live-call-panel" style="display:none;background:var(--g2);border:1px solid var(--ember);border-radius:12px;padding:16px 20px;margin-bottom:16px">
+    <div style="display:flex;align-items:center;gap:10px;margin-bottom:10px">
+      <div style="width:8px;height:8px;border-radius:50%;background:var(--rose);box-shadow:0 0 8px var(--rose);animation:pulse 1s infinite"></div>
+      <span style="font-size:13px;font-weight:600;color:var(--ink)">LIVE CALL</span>
+      <span id="live-call-name" style="font-size:13px;color:var(--ember)"></span>
+      <button onclick="stopListening()" style="margin-left:auto;background:var(--rose2);color:var(--rose);border:1px solid var(--rose);padding:5px 12px;border-radius:6px;font-size:11px;cursor:pointer">⏹ Stop Listening</button>
+    </div>
+    <div id="live-call-status" style="font-size:12px;color:var(--ink3);margin-bottom:8px">Connecting to audio stream...</div>
+    <!-- Visual audio indicator -->
+    <div style="display:flex;gap:3px;align-items:flex-end;height:24px" id="audio-bars">
+      <div style="width:4px;background:var(--ember);border-radius:2px;animation:bar1 .8s infinite" id="b1"></div>
+      <div style="width:4px;background:var(--ember);border-radius:2px;animation:bar2 .8s infinite" id="b2"></div>
+      <div style="width:4px;background:var(--ember);border-radius:2px;animation:bar3 .8s infinite" id="b3"></div>
+      <div style="width:4px;background:var(--ember);border-radius:2px;animation:bar1 .8s infinite .2s" id="b4"></div>
+      <div style="width:4px;background:var(--ember);border-radius:2px;animation:bar2 .8s infinite .1s" id="b5"></div>
+    </div>
+  </div>
+  <style>
+  @keyframes pulse{0%,100%{opacity:1}50%{opacity:.3}}
+  @keyframes bar1{0%,100%{height:6px}50%{height:20px}}
+  @keyframes bar2{0%,100%{height:14px}50%{height:8px}}
+  @keyframes bar3{0%,100%{height:20px}50%{height:4px}}
+  </style>
+
+  <!-- AUTO-CALL BAR -->
+  <div id="autocall-bar" style="display:none;background:var(--g2);border:1px solid var(--rim2);border-radius:12px;padding:16px 20px;margin-bottom:16px">
+    <div style="display:flex;align-items:center;gap:14px;flex-wrap:wrap">
+      <div style="flex:1">
+        <div style="font-size:13px;font-weight:500;color:var(--ink);margin-bottom:4px">🤖 Auto-Call Running</div>
+        <div id="autocall-status" style="font-size:12px;color:var(--ink3)">Starting...</div>
+      </div>
+      <div style="display:flex;align-items:center;gap:8px">
+        <div id="autocall-progress" style="font-family:'IBM Plex Mono',monospace;font-size:13px;color:var(--gold)">0 / 0</div>
+        <button onclick="stopAutocall()" style="background:var(--rose2);color:var(--rose);border:1px solid var(--rose);padding:7px 14px;border-radius:8px;font-size:12px;cursor:pointer;font-weight:600">⏹ Stop</button>
+      </div>
+    </div>
+    <div style="margin-top:10px;background:var(--g1);border-radius:6px;height:4px;overflow:hidden">
+      <div id="autocall-fill" style="height:100%;background:var(--gold);width:0%;transition:width .4s"></div>
+    </div>
+  </div>
+
+  <div id="prospect-list" style="display:flex;flex-direction:column;gap:8px">
+    <div style="color:var(--ink3);font-size:13px">Loading prospects...</div>
+  </div>
+
+  <!-- START AUTO-CALL BUTTON (bottom, sticky feel) -->
+  <div id="start-autocall-wrap" style="position:sticky;bottom:20px;margin-top:20px;display:none">
+    <button onclick="startAutocall()" id="btn-start-autocall"
+      style="width:100%;background:var(--ember);color:white;border:none;padding:14px;border-radius:10px;font-size:14px;font-weight:600;cursor:pointer;box-shadow:0 4px 20px rgba(240,144,68,.4)">
+      📞 Start Auto-Call — Eric Dials Everyone
+    </button>
+  </div>
+</div></div>
+
 <div class="pg" id="pg-intel"><div class="pg-inner">
   <div class="eyebrow">agent research</div><div class="headline">Intel</div><div class="sub">Everything your agents have found and saved.</div>
   <div class="sl mb16">top job matches</div>
@@ -432,10 +526,185 @@ body{display:grid;grid-template-columns:56px 1fr}
 </div>
 <script>
 const API='http://localhost:8000';
+const SHEETS_URL='https://docs.google.com/spreadsheets/d/12PoYqddT3FzQAlvL871cR4kUfk3X37M_qO10oT2V65c/edit';
+// Update sheets links
+document.querySelectorAll('#sheets-link,#sheets-link2').forEach(a=>a.href=SHEETS_URL);
+
 let lastId=0,allEvents=[],connected=false;
 const h=new Date().getHours();
 document.getElementById('greet').textContent=(h<12?'good morning':h<17?'good afternoon':'good evening')+', katy';
-function nav(p,el){document.querySelectorAll('.pg').forEach(x=>x.classList.remove('on'));document.querySelectorAll('.ri').forEach(x=>x.classList.remove('on'));document.getElementById('pg-'+p).classList.add('on');if(el)el.classList.add('on');}
+
+// ── PROSPECTS ──────────────────────────────────────────────────────────────
+let allProspects=[];
+let autocallQueue=[];
+let autocallRunning=false;
+let autocallIndex=0;
+
+async function loadProspects(){
+  const filter=document.getElementById('filter-priority')?.value||'';
+  const list=document.getElementById('prospect-list');
+  if(!list)return;
+  list.innerHTML='<div style="color:var(--ink3);font-size:13px">Loading...</div>';
+  try{
+    const r=await fetch(`${API}/prospects`);
+    allProspects=await r.json();
+    let data=filter==='CALLABLE'
+      ? allProspects.filter(p=>p.gbp_score<5||p.priority==='HOT')
+      : filter
+        ? allProspects.filter(p=>p.priority===filter)
+        : allProspects;
+    // Only show ones with phones first, then no-phone at bottom
+    data.sort((a,b)=>{
+      if(a.phone&&!b.phone)return -1;
+      if(!a.phone&&b.phone)return 1;
+      const po={HOT:0,WARM:1,COLD:2};
+      return (po[a.priority]||1)-(po[b.priority]||1);
+    });
+    const withPhone=data.filter(p=>p.phone);
+    document.getElementById('prospect-count').textContent=`${data.length} total · ${withPhone.length} ready to call`;
+    document.getElementById('s-prospects').textContent=allProspects.length||'0';
+    document.getElementById('s-hot').textContent=allProspects.filter(p=>p.priority==='HOT').length||'0';
+    const pip=document.getElementById('pip-prospects');
+    if(pip)pip.style.display=allProspects.length?'block':'none';
+    // Show start button if we have callables
+    const wrap=document.getElementById('start-autocall-wrap');
+    if(wrap)wrap.style.display=withPhone.length?'block':'none';
+    if(!data.length){list.innerHTML='<div style="color:var(--ink3);font-size:13px;padding:20px 0">No prospects yet — click Scan for Prospects on the home page.</div>';return;}
+    list.innerHTML='';
+    data.forEach(p=>list.appendChild(buildProspectCard(p)));
+  }catch(e){list.innerHTML='<div style="color:var(--rose);font-size:13px">Could not load prospects — is the server running?</div>';}
+}
+
+function buildProspectCard(p){
+  const issues=tryParseJSON(p.gbp_issues)||[];
+  const issueText=issues.slice(0,2).join(' · ')||'needs optimization';
+  const pc=p.priority==='HOT'?'#f09044':p.priority==='WARM'?'#d4a843':'#50507a';
+  const pe=p.priority==='HOT'?'🔥':p.priority==='WARM'?'🌤':'❄';
+  const phone=p.phone||'';
+  const cleanPhone=phone.replace(/\D/g,'');
+  const card=document.createElement('div');
+  card.id='card-'+p.id;
+  card.style.cssText='background:var(--g1);border:1px solid var(--rim);border-radius:12px;padding:16px 18px;display:grid;grid-template-columns:1fr auto;gap:12px;align-items:start;transition:opacity .3s';
+  card.innerHTML=`
+    <div>
+      <div style="display:flex;align-items:center;gap:8px;margin-bottom:5px">
+        <span style="font-size:10px;font-weight:600;background:${pc}22;color:${pc};padding:2px 8px;border-radius:4px">${pe} ${p.priority||'WARM'}</span>
+        <span style="font-family:'IBM Plex Mono',monospace;font-size:9px;color:var(--ink3);text-transform:uppercase">${p.niche||''} · ${p.location||''}</span>
+      </div>
+      <div style="font-size:15px;font-weight:500;color:var(--ink);margin-bottom:3px">${p.business_name}</div>
+      <div style="font-size:13px;color:var(--teal);margin-bottom:5px">${phone||'<span style="color:var(--ink3)">no phone</span>'}</div>
+      <div style="font-size:11px;color:var(--ink3);line-height:1.5">${issueText}</div>
+    </div>
+    <div style="display:flex;flex-direction:column;gap:6px;min-width:80px">
+      ${cleanPhone?`<button onclick="callProspect('${cleanPhone}','${escHtml(p.business_name)}','${p.location||''}','${p.niche||''}',this)" style="background:var(--ember);color:white;border:none;padding:8px 12px;border-radius:8px;font-size:12px;font-weight:600;cursor:pointer">📞 Call</button>`:''}
+      ${p.maps_url?`<a href="${p.maps_url}" target="_blank" style="background:var(--g3);color:var(--ink2);border:1px solid var(--rim2);padding:6px 10px;border-radius:8px;font-size:11px;text-align:center;text-decoration:none">GBP ↗</a>`:''}
+      <button onclick="deleteProspect(${p.id},this)" style="background:var(--rose2);color:var(--rose);border:1px solid transparent;padding:6px 10px;border-radius:8px;font-size:11px;cursor:pointer">✕ Remove</button>
+    </div>`;
+  return card;
+}
+
+async function deleteProspect(id,btn){
+  if(!confirm('Remove this prospect?'))return;
+  btn.disabled=true;
+  await fetch(`${API}/prospects/${id}`,{method:'DELETE'});
+  const card=document.getElementById('card-'+id);
+  if(card){card.style.opacity='0';setTimeout(()=>card.remove(),300);}
+  allProspects=allProspects.filter(p=>p.id!==id);
+  document.getElementById('prospect-count').textContent=`${allProspects.length} prospects`;
+}
+
+function tryParseJSON(v){try{return typeof v==='string'?JSON.parse(v):v;}catch{return null;}}
+function escHtml(s){return (s||'').replace(/'/g,"\\'")}
+
+async function callProspect(phone,name,city,niche,btn){
+  if(!btn)btn=event?.target;
+  if(btn){btn.disabled=true;btn.textContent='Dialing...';}
+  try{
+    const r=await fetch(`${API}/vapi/call`,{
+      method:'POST',headers:{'Content-Type':'application/json'},
+      body:JSON.stringify({prospect_phone:'+1'+phone,business_name:name,city,business_type:niche,gbp_condition:'INCOMPLETE_PROFILE'})
+    });
+    const d=await r.json();
+    if(btn){
+      btn.textContent=d.id?'✓ Called':'✗ Error';
+      btn.style.background=d.id?'#44e888':'#f0607a';
+      setTimeout(()=>{if(btn){btn.disabled=false;btn.textContent='📞 Call';btn.style.background='var(--ember)';}},5000);
+    }
+    return !!d.id;
+  }catch(e){if(btn){btn.textContent='✗ Error';btn.disabled=false;}return false;}
+}
+
+// ── AUTO-CALL QUEUE ──────────────────────────────────────────────────────────
+function startAutocall(){
+  // Only call prospects with score < 5 OR HOT priority — most likely to convert
+  autocallQueue=allProspects.filter(p=>p.phone&&(p.gbp_score<5||p.priority==='HOT')).map(p=>({
+    phone:p.phone.replace(/\D/g,''),
+    name:p.business_name,
+    city:p.location||'',
+    niche:p.niche||'',
+    id:p.id
+  }));
+  if(!autocallQueue.length){alert('No prospects with phone numbers.');return;}
+  autocallIndex=0;
+  autocallRunning=true;
+  document.getElementById('autocall-bar').style.display='block';
+  document.getElementById('start-autocall-wrap').style.display='none';
+  runNextCall();
+}
+
+async function runNextCall(){
+  if(!autocallRunning||autocallIndex>=autocallQueue.length){
+    stopAutocall(true);return;
+  }
+  const p=autocallQueue[autocallIndex];
+  const total=autocallQueue.length;
+  document.getElementById('autocall-progress').textContent=`${autocallIndex+1} / ${total}`;
+  document.getElementById('autocall-fill').style.width=`${Math.round((autocallIndex/total)*100)}%`;
+  document.getElementById('autocall-status').textContent=`Calling ${p.name} — ${p.phone}`;
+  // Highlight current card
+  document.querySelectorAll('[id^=card-]').forEach(c=>c.style.borderColor='');
+  const cur=document.getElementById('card-'+p.id);
+  if(cur){cur.style.borderColor='var(--ember)';cur.scrollIntoView({behavior:'smooth',block:'nearest'});}
+  await callProspect(p.phone,p.name,p.city,p.niche,null);
+  autocallIndex++;
+  // Wait 90 seconds between calls so VAPI isn't overwhelmed
+  if(autocallRunning&&autocallIndex<autocallQueue.length){
+    let secs=90;
+    const tick=setInterval(()=>{
+      if(!autocallRunning){clearInterval(tick);return;}
+      secs--;
+      const next=autocallQueue[autocallIndex];
+      document.getElementById('autocall-status').textContent=`Next: ${next?.name} in ${secs}s...`;
+      if(secs<=0){clearInterval(tick);runNextCall();}
+    },1000);
+  }else{
+    runNextCall();
+  }
+}
+
+function stopAutocall(done=false){
+  autocallRunning=false;
+  document.getElementById('autocall-bar').style.display='none';
+  document.getElementById('start-autocall-wrap').style.display='block';
+  document.getElementById('btn-start-autocall').textContent=done?'✓ All Called — Restart?':'📞 Start Auto-Call — Eric Dials Everyone';
+  document.querySelectorAll('[id^=card-]').forEach(c=>c.style.borderColor='');
+}
+
+async function triggerScan(){
+  const btn=event.target.closest('button');
+  const lbl=document.getElementById('scan-lbl');
+  const ico=document.getElementById('scan-ico');
+  btn.disabled=true;lbl.textContent='Scanning...';ico.textContent='⏳';
+  const niches=['plumbers','HVAC contractors','electricians','auto repair shops','roofers'];
+  const cities=['Houston TX','Dallas TX','Phoenix AZ','San Antonio TX','Columbus OH'];
+  const niche=niches[Math.floor(Math.random()*niches.length)];
+  const city=cities[Math.floor(Math.random()*cities.length)];
+  await fetch(`${API}/task`,{method:'POST',headers:{'Content-Type':'application/json'},
+    body:JSON.stringify({task:`Scan for GBP prospects: ${niche} in ${city}. Find real businesses. Save HOT and WARM to database.`,agent:'gbp_scout'})
+  });
+  setTimeout(()=>{btn.disabled=false;lbl.textContent='Scan for Prospects';ico.textContent='🔍';loadProspects();},3000);
+}
+function nav(p,el){document.querySelectorAll('.pg').forEach(x=>x.classList.remove('on'));document.querySelectorAll('.ri').forEach(x=>x.classList.remove('on'));document.getElementById('pg-'+p).classList.add('on');if(el)el.classList.add('on');if(p==='prospects')loadProspects();}
 const aC={team_leader:'var(--violet)',coordinator:'var(--violet)',scout:'var(--sky)',outreach:'var(--teal)',engineer:'var(--ember)',coach:'var(--green)',katy:'var(--gold)',system:'var(--ink4)',research:'#4488ff',research_assistant:'#4488ff',small_biz_expert:'var(--teal)',biz_dev:'var(--teal)',automations:'var(--teal)',solutions_architect:'var(--teal)',lead_gen:'var(--ember)',marketing:'var(--ember)',sales:'var(--ember)',sales_ops:'var(--ember)',job_seeker:'var(--sky)',asst_job_seeker:'var(--sky)',resume_builder:'var(--sky)',networking:'var(--sky)',interview_coach:'var(--green)'};
 const tS={thought:{bg:'var(--g3)',c:'var(--ink4)'},action:{bg:'var(--sky2)',c:'var(--sky)'},message:{bg:'var(--violet2)',c:'var(--violet)'},approval_needed:{bg:'var(--gold3)',c:'var(--gold)'},result:{bg:'var(--green2)',c:'var(--green)'}};
 function addRow(ev){
@@ -448,7 +717,20 @@ function addRow(ev){
   const st=document.getElementById('st-'+ev.agent);if(st){st.textContent=ev.type==='thought'?'thinking...':ev.type==='result'?'done':ev.type;setTimeout(()=>{if(st)st.textContent='idle'},4000);}
 }
 async function poll(){try{const r=await fetch(`${API}/events?since_id=${lastId}`);const evs=await r.json();if(evs.length){evs.forEach(e=>{allEvents.push(e);addRow(e)});lastId=evs[evs.length-1].id;}connected=true;document.getElementById('s-events').textContent=allEvents.length;}catch(e){connected=false;}}
-async function pollSt(){try{const r=await fetch(`${API}/status`);const d=await r.json();document.getElementById('s-appr').textContent=d.pending_approvals??'—';document.getElementById('s-agents').textContent=d.agents??'24';if(d.memory){document.getElementById('s-jobs').textContent=d.memory.jobs_total??'—';document.getElementById('s-contacts').textContent=d.memory.contacts_total??'—';}}catch(e){}}
+async function pollSt(){
+  try{
+    const r=await fetch(`${API}/status`);const d=await r.json();
+    document.getElementById('s-appr').textContent=d.pending_approvals??'—';
+    document.getElementById('s-agents').textContent=d.agents??'—';
+  }catch(e){}
+  try{
+    const r2=await fetch(`${API}/prospects`);const pros=await r2.json();
+    document.getElementById('s-prospects').textContent=pros.length||'0';
+    document.getElementById('s-hot').textContent=pros.filter(p=>p.priority==='HOT').length||'0';
+    const pip=document.getElementById('pip-prospects');
+    if(pip) pip.style.display=pros.length?'block':'none';
+  }catch(e){}
+}
 async function pollAppr(){try{const r=await fetch(`${API}/approvals`);const items=await r.json();const list=document.getElementById('outbox-list');if(!items.length){list.innerHTML='<div class="empty">✓ nothing pending<br>agents will ask before acting</div>';return;}list.innerHTML='';items.forEach(item=>{const d=item.details||{};const isEmail=item.action==='send_email';let detailHtml='';if(isEmail){detailHtml=`<div style="background:var(--g2);border:1px solid var(--rim);border-radius:8px;padding:14px;margin-bottom:14px;font-size:12px;line-height:1.8"><div style="color:var(--ink3);font-family:'IBM Plex Mono',monospace;font-size:9px;letter-spacing:.1em;text-transform:uppercase;margin-bottom:8px">email ready to send</div><div><span style="color:var(--ink3)">TO: </span><span style="color:var(--teal)">${d.to||'unknown'}</span></div><div><span style="color:var(--ink3)">FOR: </span><span style="color:var(--ink)">${d.prospect_name||''} · ${d.location||''}</span></div><div style="margin-top:8px"><span style="color:var(--ink3)">SUBJECT: </span><span style="color:var(--gold)">${d.subject||''}</span></div><div style="margin-top:10px;padding-top:10px;border-top:1px solid var(--rim);color:var(--ink2);white-space:pre-wrap;font-family:'DM Sans',sans-serif">${(d.body||'').replace(/</g,'&lt;')}</div></div>`;}else{detailHtml=`<div class="appr-detail">${d.preview||d.task||JSON.stringify(d).slice(0,300)}</div>`;}const c=document.createElement('div');c.className='appr';c.innerHTML=`<div class="appr-who">${item.agent} — ${isEmail?'email outreach':'action needed'}</div><div class="appr-action" style="margin-bottom:12px">${isEmail?`Send email to <strong>${d.prospect_name||d.to}</strong>`:item.action}</div>${detailHtml}<div class="appr-btns"><button class="btn-y" onclick="doAppr(${item.id},this)">✓ send it</button><button class="btn-n" onclick="doRej(${item.id},this)">✗ skip</button></div>`;list.appendChild(c);});}catch(e){}}
 async function doAppr(id,btn){btn.disabled=true;await fetch(`${API}/approvals/${id}/approve`,{method:'POST'});btn.closest('.appr').style.opacity='.4';setTimeout(()=>pollAppr(),600);}
 async function doRej(id,btn){btn.disabled=true;await fetch(`${API}/approvals/${id}/reject`,{method:'POST'});btn.closest('.appr').style.opacity='.4';setTimeout(()=>pollAppr(),600);}
@@ -456,6 +738,94 @@ async function sendMsg(){const inp=document.getElementById('chat-in');const who=
 function quick(w,m){document.getElementById('chat-who').value=w;document.getElementById('chat-in').value=m;sendMsg();}
 async function runGBP(niche,location){const btn=event.target;btn.disabled=true;btn.textContent='scanning...';addRow({id:Date.now(),timestamp:new Date().toISOString(),agent:'gbp_scout',type:'action',content:`Starting GBP scan: ${niche} in ${location}`});try{const r=await fetch(`${API}/gbp-pipeline`,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({niche,location,limit:15})});const d=await r.json();addRow({id:Date.now(),timestamp:new Date().toISOString(),agent:'gbp_scout',type:'result',content:`Scan complete. Check Outbox for email drafts ready to approve.`});nav('outbox',document.querySelector('.ri[onclick*="outbox"]'));setTimeout(pollAppr,1000);}catch(e){addRow({id:Date.now(),timestamp:new Date().toISOString(),agent:'system',type:'result',content:'⚠️ Pipeline error — is orchestrator running?'});}btn.disabled=false;btn.textContent=btn.textContent.replace('scanning...','done ✓');}
 async function checkSess(){try{const r=await fetch(`${API}/browser/sessions`);const d=await r.json();if(d.linkedin){document.getElementById('li-st').textContent='connected';document.getElementById('li-st').className='sess-status c-teal';document.getElementById('li-btn').className='sess-btn ok';document.getElementById('li-btn').textContent='connected ✓';}if(d.facebook){document.getElementById('fb-st').textContent='connected';document.getElementById('fb-st').className='sess-status c-teal';document.getElementById('fb-btn').className='sess-btn ok';document.getElementById('fb-btn').textContent='connected ✓';}}catch(e){}}
+
+// ── LIVE CALL MONITOR ─────────────────────────────────────────────────────────
+let liveCallWs=null;
+let liveAudioCtx=null;
+let currentListenUrl='';
+
+async function pollActiveCalls(){
+  try{
+    const r=await fetch(`${API}/vapi/active`);
+    const d=await r.json();
+    const calls=d.calls||[];
+    if(calls.length>0){
+      const call=calls[0];
+      const panel=document.getElementById('live-call-panel');
+      if(panel){
+        panel.style.display='block';
+        document.getElementById('live-call-name').textContent=call.business||call.phone||'Active Call';
+      }
+      // Connect WebSocket if we have a listen URL and not already connected
+      if(call.listen_url&&call.listen_url!==currentListenUrl){
+        currentListenUrl=call.listen_url;
+        connectCallAudio(call.listen_url,call.business);
+      }
+    } else {
+      // No active calls — hide panel, close WS
+      const panel=document.getElementById('live-call-panel');
+      if(panel&&panel.style.display!=='none'){
+        panel.style.display='none';
+      }
+      if(liveCallWs){liveCallWs.close();liveCallWs=null;currentListenUrl='';}
+    }
+  }catch(e){}
+}
+
+function connectCallAudio(wsUrl, businessName){
+  if(liveCallWs){liveCallWs.close();}
+  document.getElementById('live-call-status').textContent='Connecting to live audio...';
+  try{
+    liveAudioCtx=new (window.AudioContext||window.webkitAudioContext)({sampleRate:8000});
+  }catch(e){
+    document.getElementById('live-call-status').textContent='Audio not supported in this browser.';
+    return;
+  }
+  let nextPlayTime=liveAudioCtx.currentTime;
+  liveCallWs=new WebSocket(wsUrl);
+  liveCallWs.binaryType='arraybuffer';
+  liveCallWs.onopen=()=>{
+    document.getElementById('live-call-status').textContent=`🎙 Listening to ${businessName||'call'}...`;
+    document.getElementById('audio-bars').style.opacity='1';
+  };
+  liveCallWs.onmessage=(ev)=>{
+    if(!(ev.data instanceof ArrayBuffer))return;
+    try{
+      // VAPI sends 16-bit PCM mono 8000Hz
+      const pcm=new Int16Array(ev.data);
+      const floats=new Float32Array(pcm.length);
+      for(let i=0;i<pcm.length;i++)floats[i]=pcm[i]/32768.0;
+      const buf=liveAudioCtx.createBuffer(1,floats.length,8000);
+      buf.copyToChannel(floats,0);
+      const src=liveAudioCtx.createBufferSource();
+      src.buffer=buf;
+      src.connect(liveAudioCtx.destination);
+      const now=liveAudioCtx.currentTime;
+      if(nextPlayTime<now)nextPlayTime=now+0.05;
+      src.start(nextPlayTime);
+      nextPlayTime+=buf.duration;
+    }catch(e){}
+  };
+  liveCallWs.onerror=()=>{document.getElementById('live-call-status').textContent='Audio connection error.';};
+  liveCallWs.onclose=()=>{
+    document.getElementById('live-call-status').textContent='Call ended.';
+    document.getElementById('audio-bars').style.opacity='0.3';
+    liveCallWs=null;
+    currentListenUrl='';
+  };
+}
+
+function stopListening(){
+  if(liveCallWs){liveCallWs.close();liveCallWs=null;currentListenUrl='';}
+  if(liveAudioCtx){liveAudioCtx.close();liveAudioCtx=null;}
+  document.getElementById('live-call-panel').style.display='none';
+}
+
+// Poll for active calls every 5s when on prospects page
+setInterval(()=>{
+  if(document.getElementById('pg-prospects')?.classList.contains('on'))pollActiveCalls();
+},5000);
+
 const demo=[{id:1,timestamp:new Date().toISOString(),agent:'system',type:'result',content:'Agent team online — 15 agents ready'},{id:2,timestamp:new Date().toISOString(),agent:'team_leader',type:'thought',content:"Initializing. Loading Katy's brief. All teams standing by."},{id:3,timestamp:new Date().toISOString(),agent:'scout',type:'action',content:'Starting job search: AI developer roles, remote, $50k+'},{id:4,timestamp:new Date().toISOString(),agent:'small_biz_expert',type:'thought',content:'Scanning Charleston WV area for contractors with intake problems...'},{id:5,timestamp:new Date().toISOString(),agent:'scout',type:'result',content:'14 roles found — top: AI Implementation Specialist @ Synthesia ($65k)'},{id:6,timestamp:new Date().toISOString(),agent:'outreach',type:'approval_needed',content:'Draft ready for Hugging Face recruiter — waiting for Katy approval'},{id:7,timestamp:new Date().toISOString(),agent:'team_leader',type:'message',content:'Scout found 14 jobs. Small Biz Expert identified 2 contractor prospects. Outreach has drafts in your Outbox.'},];
 let di=0;function runDemo(){if(di<demo.length){addRow(demo[di++]);setTimeout(runDemo,650+Math.random()*750);}}
 setTimeout(runDemo,300);checkSess();setInterval(poll,2500);setInterval(pollSt,8000);setInterval(pollAppr,6000);

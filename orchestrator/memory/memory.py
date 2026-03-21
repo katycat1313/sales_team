@@ -350,7 +350,7 @@ def get_memory_summary() -> dict:
 # ── PROSPECTS (GBP Sales Pipeline) ───────────────────
 
 def save_prospect(business_name: str, location: str, **kwargs) -> bool:
-    """Save a GBP prospect. Returns True if new."""
+    """Save a GBP prospect. Returns True if new. Also pushes to Google Sheets."""
     conn = get_db()
     import json as _json
     # Serialize dict fields
@@ -367,6 +367,15 @@ def save_prospect(business_name: str, location: str, **kwargs) -> bool:
         )
         conn.commit()
         conn.close()
+        # Push to Google Sheets if webhook is configured
+        try:
+            from tools.sheets_tool import push_prospect_sync
+            import os
+            if os.getenv("GOOGLE_SHEETS_WEBHOOK_URL"):
+                prospect_data = {"business_name": business_name, "location": location, **kwargs}
+                push_prospect_sync(prospect_data)
+        except Exception:
+            pass  # Never block a save due to Sheets failure
         return True
     except Exception:
         conn.close()

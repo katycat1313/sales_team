@@ -315,6 +315,16 @@ def get_prospects_list(stage: str = None, priority: str = None):
     from memory.memory import get_prospects
     return get_prospects(stage=stage, priority=priority)
 
+@app.delete("/prospects/{prospect_id}")
+def delete_prospect(prospect_id: int):
+    from memory.memory import get_db
+    conn = get_db()
+    conn.execute("DELETE FROM prospects WHERE id=?", (prospect_id,))
+    conn.commit()
+    conn.close()
+    log_event("system", "action", f"Prospect {prospect_id} deleted")
+    return {"deleted": True, "id": prospect_id}
+
 
 @app.post("/execute")
 async def execute_mission(body: dict):
@@ -373,20 +383,41 @@ async def trigger_vapi_call(body: dict):
         clean = prospect_phone.replace("+1","").replace("-","").replace(" ","").replace("(","").replace(")","")
         prospect_data = next((p for p in all_prospects if clean in str(p.get("phone","")).replace("-","").replace(" ","")), {})
 
+    # Parse gbp_issues from DB (stored as JSON string)
+    raw_issues = prospect_data.get("gbp_issues", "[]")
+    try:
+        db_issues = json.loads(raw_issues) if isinstance(raw_issues, str) else raw_issues
+    except Exception:
+        db_issues = [raw_issues] if raw_issues else []
+
+    # Determine GBP condition from issues
+    db_condition = "INCOMPLETE_PROFILE"
+    if db_issues:
+        issues_str = " ".join(db_issues).lower()
+        if "no gbp" in issues_str or "no listing" in issues_str or "no profile" in issues_str:
+            db_condition = "NO_PROFILE"
+        elif "unclaimed" in issues_str:
+            db_condition = "NO_PROFILE"
+        elif "outdated" in issues_str:
+            db_condition = "OUTDATED_PROFILE"
+
+    # Parse research notes for extra intel
+    research = prospect_data.get("research_notes", "") or ""
+
     result = await make_call(
         prospect_phone=prospect_phone,
-        prospect_name=body.get("prospect_name") or prospect_data.get("owner_name") or prospect_data.get("business_name", "there"),
+        prospect_name=body.get("prospect_name") or prospect_data.get("owner_name") or "the owner",
         business_name=body.get("business_name") or prospect_data.get("business_name", ""),
-        gbp_condition=body.get("gbp_condition") or prospect_data.get("gbp_condition", "INCOMPLETE_PROFILE"),
-        issues=body.get("issues") or prospect_data.get("issues", []),
+        gbp_condition=body.get("gbp_condition") or db_condition,
+        issues=body.get("issues") or db_issues,
         business_type=body.get("business_type") or prospect_data.get("niche", ""),
         city=body.get("city") or prospect_data.get("location", ""),
         website=prospect_data.get("website", ""),
-        description=prospect_data.get("description", ""),
+        description=prospect_data.get("description", "") or research[:300],
         years_in_business=prospect_data.get("years_in_business", ""),
         services=prospect_data.get("services", ""),
-        rating=prospect_data.get("rating", ""),
-        review_count=prospect_data.get("review_count", ""),
+        rating=str(prospect_data.get("rating", "") or prospect_data.get("gbp_score", "")),
+        review_count=str(prospect_data.get("review_count", "")),
         extra_intel=prospect_data.get("extra_intel", ""),
         assistant_id=body.get("assistant_id", os.getenv("VAPI_ASSISTANT_ID", "")),
         phone_number_id=body.get("phone_number_id", os.getenv("VAPI_PHONE_NUMBER_ID", "")),
@@ -487,6 +518,29 @@ async def vapi_save_notes(body: dict):
         return {"result": "Notes saved successfully."}
     except Exception as e:
         return {"result": f"Notes saved. ({e})"}
+
+
+@app.get("/vapi/active")
+async def vapi_active_calls():
+    """Get currently active VAPI calls with their listen URLs."""
+    import httpx
+    key = os.getenv("VAPI_API_KEY","")
+    try:
+        async with httpx.AsyncClient(timeout=10) as client:
+            # Fetch most recent calls and filter for in-progress
+            r = await client.get("https://api.vapi.ai/call?limit=20",
+                headers={"Authorization": f"Bearer {key}"})
+            calls = r.json()
+            if isinstance(calls, list):
+                active = [c for c in calls if c.get("status") in ("in-progress", "ringing", "queued")]
+                return {"calls": [{"id": c.get("id"), "status": c.get("status"),
+                    "business": c.get("customer",{}).get("name","Unknown"),
+                    "phone": c.get("customer",{}).get("number",""),
+                    "listen_url": c.get("monitor",{}).get("listenUrl",""),
+                    "started_at": c.get("startedAt","")} for c in active]}
+            return {"calls": [], "raw": calls}
+    except Exception as e:
+        return {"calls": [], "error": str(e)}
 
 
 @app.get("/vapi/calls")
