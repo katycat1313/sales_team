@@ -1,0 +1,953 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Agent Team — Command Center</title>
+<link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@300;400;500;700&family=Syne:wght@400;600;800&display=swap" rel="stylesheet">
+<style>
+  :root {
+    --bg: #0a0a0b;
+    --bg2: #111114;
+    --bg3: #18181c;
+    --bg4: #1e1e24;
+    --border: #2a2a35;
+    --border2: #3a3a48;
+    --text: #e8e8f0;
+    --text2: #8888aa;
+    --text3: #4a4a66;
+    --accent: #7c6aff;
+    --accent2: #a259ff;
+    --green: #22c55e;
+    --amber: #f59e0b;
+    --red: #ef4444;
+    --blue: #38bdf8;
+    --teal: #2dd4bf;
+  }
+
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+
+  body {
+    background: var(--bg);
+    color: var(--text);
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 13px;
+    height: 100vh;
+    overflow: hidden;
+    display: grid;
+    grid-template-rows: 48px 1fr;
+    grid-template-columns: 220px 1fr 300px;
+    grid-template-areas:
+      "header header header"
+      "sidebar main panel";
+  }
+
+  /* HEADER */
+  header {
+    grid-area: header;
+    background: var(--bg2);
+    border-bottom: 1px solid var(--border);
+    display: flex;
+    align-items: center;
+    padding: 0 20px;
+    gap: 24px;
+    position: relative;
+  }
+
+  .logo {
+    font-family: 'Syne', sans-serif;
+    font-weight: 800;
+    font-size: 15px;
+    letter-spacing: 0.05em;
+    color: var(--text);
+    display: flex;
+    align-items: center;
+    gap: 8px;
+  }
+
+  .logo-dot {
+    width: 8px; height: 8px;
+    border-radius: 50%;
+    background: var(--accent);
+    box-shadow: 0 0 8px var(--accent);
+    animation: pulse 2s ease-in-out infinite;
+  }
+
+  @keyframes pulse {
+    0%, 100% { opacity: 1; box-shadow: 0 0 8px var(--accent); }
+    50% { opacity: 0.5; box-shadow: 0 0 3px var(--accent); }
+  }
+
+  .header-status {
+    display: flex;
+    align-items: center;
+    gap: 16px;
+    margin-left: auto;
+  }
+
+  .status-pill {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    font-size: 11px;
+    color: var(--text2);
+    padding: 4px 10px;
+    border-radius: 20px;
+    border: 1px solid var(--border);
+    background: var(--bg3);
+  }
+
+  .status-dot {
+    width: 6px; height: 6px;
+    border-radius: 50%;
+  }
+
+  .status-dot.online { background: var(--green); box-shadow: 0 0 6px var(--green); }
+  .status-dot.idle { background: var(--amber); }
+  .status-dot.offline { background: var(--red); }
+
+  .header-time {
+    font-size: 11px;
+    color: var(--text3);
+    font-variant-numeric: tabular-nums;
+  }
+
+  /* SIDEBAR */
+  aside {
+    grid-area: sidebar;
+    background: var(--bg2);
+    border-right: 1px solid var(--border);
+    padding: 16px 12px;
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+    overflow-y: auto;
+  }
+
+  .sidebar-label {
+    font-size: 10px;
+    letter-spacing: 0.12em;
+    text-transform: uppercase;
+    color: var(--text3);
+    padding: 8px 8px 4px;
+    font-family: 'Syne', sans-serif;
+  }
+
+  .agent-btn {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    padding: 9px 10px;
+    border-radius: 8px;
+    cursor: pointer;
+    border: 1px solid transparent;
+    background: transparent;
+    color: var(--text2);
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 12px;
+    transition: all 0.15s;
+    width: 100%;
+    text-align: left;
+  }
+
+  .agent-btn:hover { background: var(--bg3); color: var(--text); border-color: var(--border); }
+  .agent-btn.active { background: var(--bg4); color: var(--text); border-color: var(--border2); }
+
+  .agent-icon {
+    width: 28px; height: 28px;
+    border-radius: 6px;
+    display: flex; align-items: center; justify-content: center;
+    font-size: 13px;
+    flex-shrink: 0;
+  }
+
+  .agent-info { flex: 1; min-width: 0; }
+  .agent-name { font-weight: 500; font-size: 12px; }
+  .agent-state { font-size: 10px; color: var(--text3); margin-top: 1px; }
+
+  .agent-badge {
+    min-width: 18px; height: 18px;
+    border-radius: 9px;
+    background: var(--accent);
+    color: white;
+    font-size: 10px;
+    display: flex; align-items: center; justify-content: center;
+    padding: 0 5px;
+  }
+
+  .sidebar-divider {
+    height: 1px;
+    background: var(--border);
+    margin: 8px 0;
+  }
+
+  /* MAIN */
+  main {
+    grid-area: main;
+    display: grid;
+    grid-template-rows: 1fr 160px;
+    overflow: hidden;
+  }
+
+  .event-feed {
+    overflow-y: auto;
+    padding: 16px;
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+  }
+
+  .event-feed::-webkit-scrollbar { width: 4px; }
+  .event-feed::-webkit-scrollbar-track { background: transparent; }
+  .event-feed::-webkit-scrollbar-thumb { background: var(--border2); border-radius: 2px; }
+
+  .feed-header {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    padding-bottom: 12px;
+    border-bottom: 1px solid var(--border);
+    margin-bottom: 8px;
+  }
+
+  .feed-title {
+    font-family: 'Syne', sans-serif;
+    font-size: 11px;
+    font-weight: 600;
+    letter-spacing: 0.1em;
+    text-transform: uppercase;
+    color: var(--text2);
+  }
+
+  .event-row {
+    display: flex;
+    gap: 10px;
+    padding: 7px 10px;
+    border-radius: 6px;
+    border-left: 2px solid transparent;
+    transition: background 0.1s;
+    animation: fadeIn 0.3s ease;
+  }
+
+  @keyframes fadeIn {
+    from { opacity: 0; transform: translateY(4px); }
+    to { opacity: 1; transform: translateY(0); }
+  }
+
+  .event-row:hover { background: var(--bg3); }
+
+  .event-row.thought { border-left-color: var(--text3); }
+  .event-row.action { border-left-color: var(--blue); }
+  .event-row.message { border-left-color: var(--accent); }
+  .event-row.approval_needed { border-left-color: var(--amber); background: rgba(245,158,11,0.05); }
+  .event-row.result { border-left-color: var(--green); }
+
+  .event-time {
+    color: var(--text3);
+    font-size: 10px;
+    white-space: nowrap;
+    padding-top: 2px;
+    min-width: 54px;
+  }
+
+  .event-agent {
+    font-size: 10px;
+    font-weight: 500;
+    white-space: nowrap;
+    padding-top: 2px;
+    min-width: 80px;
+  }
+
+  .event-content { color: var(--text); line-height: 1.5; flex: 1; }
+
+  .event-type-tag {
+    font-size: 9px;
+    padding: 2px 6px;
+    border-radius: 4px;
+    white-space: nowrap;
+    align-self: flex-start;
+    margin-top: 2px;
+  }
+
+  .tag-thought { background: var(--bg4); color: var(--text3); }
+  .tag-action { background: rgba(56,189,248,0.1); color: var(--blue); }
+  .tag-message { background: rgba(124,106,255,0.1); color: var(--accent); }
+  .tag-approval_needed { background: rgba(245,158,11,0.1); color: var(--amber); }
+  .tag-result { background: rgba(34,197,94,0.1); color: var(--green); }
+
+  /* CHAT BOX */
+  .chat-box {
+    border-top: 1px solid var(--border);
+    background: var(--bg2);
+    padding: 12px 16px;
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+  }
+
+  .chat-bar {
+    display: flex;
+    gap: 8px;
+    align-items: center;
+  }
+
+  .agent-select {
+    background: var(--bg3);
+    border: 1px solid var(--border);
+    color: var(--text2);
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 11px;
+    padding: 8px 10px;
+    border-radius: 6px;
+    outline: none;
+    cursor: pointer;
+  }
+
+  .chat-input {
+    flex: 1;
+    background: var(--bg3);
+    border: 1px solid var(--border);
+    color: var(--text);
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 12px;
+    padding: 8px 12px;
+    border-radius: 6px;
+    outline: none;
+    transition: border-color 0.15s;
+  }
+
+  .chat-input:focus { border-color: var(--accent); }
+  .chat-input::placeholder { color: var(--text3); }
+
+  .send-btn {
+    background: var(--accent);
+    border: none;
+    color: white;
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 12px;
+    font-weight: 500;
+    padding: 8px 16px;
+    border-radius: 6px;
+    cursor: pointer;
+    transition: all 0.15s;
+    white-space: nowrap;
+  }
+
+  .send-btn:hover { background: var(--accent2); }
+  .send-btn:disabled { opacity: 0.4; cursor: not-allowed; }
+
+  .chat-shortcuts {
+    display: flex;
+    gap: 6px;
+    flex-wrap: wrap;
+  }
+
+  .shortcut {
+    font-size: 10px;
+    padding: 3px 8px;
+    border-radius: 4px;
+    border: 1px solid var(--border);
+    color: var(--text3);
+    cursor: pointer;
+    transition: all 0.15s;
+    background: transparent;
+    font-family: 'JetBrains Mono', monospace;
+  }
+
+  .shortcut:hover { border-color: var(--accent); color: var(--accent); }
+
+  /* RIGHT PANEL */
+  .panel {
+    grid-area: panel;
+    background: var(--bg2);
+    border-left: 1px solid var(--border);
+    display: flex;
+    flex-direction: column;
+    overflow: hidden;
+  }
+
+  .panel-tabs {
+    display: flex;
+    border-bottom: 1px solid var(--border);
+  }
+
+  .panel-tab {
+    flex: 1;
+    padding: 12px;
+    text-align: center;
+    font-size: 11px;
+    color: var(--text3);
+    cursor: pointer;
+    border-bottom: 2px solid transparent;
+    transition: all 0.15s;
+    font-family: 'Syne', sans-serif;
+    letter-spacing: 0.05em;
+  }
+
+  .panel-tab:hover { color: var(--text2); }
+  .panel-tab.active { color: var(--text); border-bottom-color: var(--accent); }
+
+  .panel-content {
+    flex: 1;
+    overflow-y: auto;
+    padding: 12px;
+  }
+
+  .panel-content::-webkit-scrollbar { width: 4px; }
+  .panel-content::-webkit-scrollbar-thumb { background: var(--border2); border-radius: 2px; }
+
+  /* APPROVAL CARDS */
+  .approval-card {
+    background: var(--bg3);
+    border: 1px solid var(--border);
+    border-left: 3px solid var(--amber);
+    border-radius: 8px;
+    padding: 12px;
+    margin-bottom: 8px;
+    animation: fadeIn 0.3s ease;
+  }
+
+  .approval-card.approved { border-left-color: var(--green); opacity: 0.5; }
+  .approval-card.rejected { border-left-color: var(--red); opacity: 0.5; }
+
+  .approval-agent {
+    font-size: 10px;
+    color: var(--amber);
+    margin-bottom: 4px;
+    font-weight: 500;
+  }
+
+  .approval-action {
+    font-size: 12px;
+    color: var(--text);
+    margin-bottom: 8px;
+    line-height: 1.4;
+  }
+
+  .approval-btns {
+    display: flex;
+    gap: 6px;
+  }
+
+  .btn-approve {
+    flex: 1;
+    padding: 6px;
+    border-radius: 5px;
+    border: 1px solid var(--green);
+    background: rgba(34,197,94,0.1);
+    color: var(--green);
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 11px;
+    cursor: pointer;
+    transition: all 0.15s;
+  }
+
+  .btn-approve:hover { background: rgba(34,197,94,0.2); }
+
+  .btn-reject {
+    flex: 1;
+    padding: 6px;
+    border-radius: 5px;
+    border: 1px solid var(--border2);
+    background: transparent;
+    color: var(--text3);
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 11px;
+    cursor: pointer;
+    transition: all 0.15s;
+  }
+
+  .btn-reject:hover { border-color: var(--red); color: var(--red); }
+
+  /* STATUS PANEL */
+  .stat-row {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: 10px 0;
+    border-bottom: 1px solid var(--border);
+  }
+
+  .stat-label { color: var(--text2); font-size: 11px; }
+  .stat-value { color: var(--text); font-weight: 500; }
+  .stat-value.green { color: var(--green); }
+  .stat-value.amber { color: var(--amber); }
+
+  .empty-state {
+    text-align: center;
+    color: var(--text3);
+    padding: 40px 20px;
+    font-size: 11px;
+    line-height: 2;
+  }
+
+  /* CONNECTING OVERLAY */
+  .connecting {
+    position: fixed;
+    inset: 0;
+    background: var(--bg);
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    gap: 16px;
+    z-index: 100;
+    transition: opacity 0.5s;
+  }
+
+  .connecting.hidden { opacity: 0; pointer-events: none; }
+
+  .connecting-logo {
+    font-family: 'Syne', sans-serif;
+    font-size: 24px;
+    font-weight: 800;
+    color: var(--text);
+  }
+
+  .connecting-sub {
+    font-size: 11px;
+    color: var(--text3);
+    letter-spacing: 0.1em;
+  }
+
+  .spinner {
+    width: 24px; height: 24px;
+    border: 2px solid var(--border2);
+    border-top-color: var(--accent);
+    border-radius: 50%;
+    animation: spin 0.8s linear infinite;
+  }
+
+  @keyframes spin { to { transform: rotate(360deg); } }
+
+  /* AGENT COLORS */
+  .coordinator .agent-icon { background: rgba(124,106,255,0.15); }
+  .scout .agent-icon { background: rgba(56,189,248,0.15); }
+  .outreach .agent-icon { background: rgba(45,212,191,0.15); }
+  .engineer .agent-icon { background: rgba(249,115,22,0.15); }
+  .coach .agent-icon { background: rgba(34,197,94,0.15); }
+
+  .agent-color-coordinator { color: var(--accent); }
+  .agent-color-scout { color: var(--blue); }
+  .agent-color-outreach { color: var(--teal); }
+  .agent-color-engineer { color: #f97316; }
+  .agent-color-coach { color: var(--green); }
+  .agent-color-katy { color: var(--amber); }
+  .agent-color-system { color: var(--text3); }
+</style>
+</head>
+<body>
+
+<!-- Connecting overlay -->
+<div class="connecting" id="connecting">
+  <div class="connecting-logo">AGENT TEAM</div>
+  <div class="spinner"></div>
+  <div class="connecting-sub">connecting to orchestrator...</div>
+</div>
+
+<!-- Header -->
+<header>
+  <div class="logo">
+    <div class="logo-dot"></div>
+    AGENT COMMAND CENTER
+  </div>
+  <div class="header-status">
+    <div class="status-pill" id="conn-status">
+      <div class="status-dot offline" id="conn-dot"></div>
+      <span id="conn-label">connecting</span>
+    </div>
+    <div class="status-pill" id="approval-pill" style="display:none">
+      <div class="status-dot" style="background:var(--amber)"></div>
+      <span id="approval-count">0 pending</span>
+    </div>
+    <div class="header-time" id="clock">--:--:--</div>
+  </div>
+</header>
+
+<!-- Sidebar -->
+<aside>
+  <div class="sidebar-label">Agents</div>
+
+  <button class="agent-btn coordinator active" onclick="filterAgent('all')">
+    <div class="agent-icon">🤖</div>
+    <div class="agent-info">
+      <div class="agent-name">All Agents</div>
+      <div class="agent-state" id="state-all">monitoring</div>
+    </div>
+  </button>
+
+  <button class="agent-btn coordinator" onclick="filterAgent('coordinator')">
+    <div class="agent-icon">🧠</div>
+    <div class="agent-info">
+      <div class="agent-name">Coordinator</div>
+      <div class="agent-state" id="state-coordinator">idle</div>
+    </div>
+  </button>
+
+  <button class="agent-btn scout" onclick="filterAgent('scout')">
+    <div class="agent-icon">🔍</div>
+    <div class="agent-info">
+      <div class="agent-name">Scout</div>
+      <div class="agent-state" id="state-scout">idle</div>
+    </div>
+  </button>
+
+  <button class="agent-btn outreach" onclick="filterAgent('outreach')">
+    <div class="agent-icon">✉️</div>
+    <div class="agent-info">
+      <div class="agent-name">Outreach</div>
+      <div class="agent-state" id="state-outreach">idle</div>
+    </div>
+  </button>
+
+  <button class="agent-btn engineer" onclick="filterAgent('engineer')">
+    <div class="agent-icon">⚙️</div>
+    <div class="agent-info">
+      <div class="agent-name">Engineer</div>
+      <div class="agent-state" id="state-engineer">idle</div>
+    </div>
+  </button>
+
+  <button class="agent-btn coach" onclick="filterAgent('coach')">
+    <div class="agent-icon">🎯</div>
+    <div class="agent-info">
+      <div class="agent-name">Coach</div>
+      <div class="agent-state" id="state-coach">idle</div>
+    </div>
+  </button>
+
+  <div class="sidebar-divider"></div>
+  <div class="sidebar-label">System</div>
+
+  <button class="agent-btn" onclick="clearFeed()">
+    <div class="agent-icon" style="background:var(--bg4)">🗑</div>
+    <div class="agent-info">
+      <div class="agent-name">Clear feed</div>
+    </div>
+  </button>
+
+  <button class="agent-btn" onclick="reconnect()">
+    <div class="agent-icon" style="background:var(--bg4)">↺</div>
+    <div class="agent-info">
+      <div class="agent-name">Reconnect</div>
+    </div>
+  </button>
+</aside>
+
+<!-- Main feed -->
+<main>
+  <div class="event-feed" id="feed">
+    <div class="feed-header">
+      <div class="feed-title">Live Event Stream</div>
+      <div style="margin-left:auto;font-size:10px;color:var(--text3)" id="feed-count">0 events</div>
+    </div>
+  </div>
+
+  <div class="chat-box">
+    <div class="chat-shortcuts">
+      <button class="shortcut" onclick="quickSend('scout', 'Find the best AI developer jobs remote right now')">🔍 Hunt jobs</button>
+      <button class="shortcut" onclick="quickSend('outreach', 'Draft a cold outreach to an AI startup recruiter')">✉️ Draft outreach</button>
+      <button class="shortcut" onclick="quickSend('coach', 'Give me a quick interview prep for AI developer roles')">🎯 Prep me</button>
+      <button class="shortcut" onclick="quickSend('engineer', 'Review my agent pipeline for common issues')">⚙️ Code review</button>
+      <button class="shortcut" onclick="quickSend('coordinator', 'Give me a status update on everything')">📊 Status</button>
+    </div>
+    <div class="chat-bar">
+      <select class="agent-select" id="chat-agent">
+        <option value="coordinator">coordinator</option>
+        <option value="scout">scout</option>
+        <option value="outreach">outreach</option>
+        <option value="engineer">engineer</option>
+        <option value="coach">coach</option>
+      </select>
+      <input class="chat-input" id="chat-input" placeholder="Message your agents..." onkeydown="if(event.key==='Enter')sendMessage()">
+      <button class="send-btn" id="send-btn" onclick="sendMessage()">Send →</button>
+    </div>
+  </div>
+</main>
+
+<!-- Right panel -->
+<div class="panel">
+  <div class="panel-tabs">
+    <div class="panel-tab active" onclick="switchTab('approvals', this)">Approvals</div>
+    <div class="panel-tab" onclick="switchTab('status', this)">Status</div>
+  </div>
+
+  <div class="panel-content" id="tab-approvals">
+    <div class="empty-state" id="no-approvals">
+      ✓ No pending approvals<br>
+      <span style="font-size:10px">agents will ask before acting</span>
+    </div>
+  </div>
+
+  <div class="panel-content" id="tab-status" style="display:none">
+    <div class="stat-row">
+      <span class="stat-label">Orchestrator</span>
+      <span class="stat-value green" id="s-online">—</span>
+    </div>
+    <div class="stat-row">
+      <span class="stat-label">Events logged</span>
+      <span class="stat-value" id="s-events">—</span>
+    </div>
+    <div class="stat-row">
+      <span class="stat-label">Pending approvals</span>
+      <span class="stat-value amber" id="s-approvals">—</span>
+    </div>
+    <div class="stat-row">
+      <span class="stat-label">Brief loaded</span>
+      <span class="stat-value green" id="s-brief">—</span>
+    </div>
+    <div class="stat-row">
+      <span class="stat-label">Last poll</span>
+      <span class="stat-value" id="s-poll">—</span>
+    </div>
+  </div>
+</div>
+
+<script>
+const API = 'http://localhost:8000';
+let lastEventId = 0;
+let currentFilter = 'all';
+let allEvents = [];
+let connected = false;
+
+const agentEmoji = {
+  coordinator: '🧠', scout: '🔍', outreach: '✉️',
+  engineer: '⚙️', coach: '🎯', katy: '👤', system: '⚡'
+};
+
+// Clock
+setInterval(() => {
+  document.getElementById('clock').textContent = new Date().toLocaleTimeString();
+}, 1000);
+
+// Connect
+async function connect() {
+  try {
+    const r = await fetch(`${API}/status`);
+    if (r.ok) {
+      const data = await r.json();
+      setConnected(true);
+      updateStatus(data);
+    }
+  } catch(e) {
+    setConnected(false);
+  }
+}
+
+function setConnected(ok) {
+  connected = ok;
+  document.getElementById('conn-dot').className = 'status-dot ' + (ok ? 'online' : 'offline');
+  document.getElementById('conn-label').textContent = ok ? 'online' : 'offline';
+  if (ok) {
+    const overlay = document.getElementById('connecting');
+    overlay.classList.add('hidden');
+    setTimeout(() => overlay.remove(), 600);
+  }
+}
+
+function reconnect() {
+  setConnected(false);
+  lastEventId = 0;
+  connect();
+}
+
+// Poll events
+async function pollEvents() {
+  if (!connected) { await connect(); return; }
+  try {
+    const r = await fetch(`${API}/events?since_id=${lastEventId}`);
+    const events = await r.json();
+    if (events.length) {
+      events.forEach(addEvent);
+      lastEventId = events[events.length - 1].id;
+    }
+  } catch(e) { setConnected(false); }
+}
+
+// Poll approvals
+async function pollApprovals() {
+  if (!connected) return;
+  try {
+    const r = await fetch(`${API}/approvals`);
+    const items = await r.json();
+    renderApprovals(items);
+    const pill = document.getElementById('approval-pill');
+    const count = document.getElementById('approval-count');
+    if (items.length > 0) {
+      pill.style.display = 'flex';
+      count.textContent = items.length + ' pending';
+    } else {
+      pill.style.display = 'none';
+    }
+  } catch(e) {}
+}
+
+// Poll status
+async function pollStatus() {
+  if (!connected) return;
+  try {
+    const r = await fetch(`${API}/status`);
+    const data = await r.json();
+    updateStatus(data);
+  } catch(e) {}
+}
+
+function updateStatus(data) {
+  document.getElementById('s-online').textContent = data.online ? 'online' : 'offline';
+  document.getElementById('s-events').textContent = data.events_logged;
+  document.getElementById('s-approvals').textContent = data.pending_approvals;
+  document.getElementById('s-brief').textContent = data.brief_loaded ? 'yes' : 'no';
+  document.getElementById('s-poll').textContent = new Date().toLocaleTimeString();
+}
+
+function addEvent(ev) {
+  allEvents.push(ev);
+  renderFeed();
+  // Update agent state
+  const stateEl = document.getElementById('state-' + ev.agent);
+  if (stateEl) stateEl.textContent = ev.type === 'thought' ? 'thinking...' : ev.type;
+  // Reset state after 3s
+  setTimeout(() => {
+    if (stateEl) stateEl.textContent = 'idle';
+  }, 3000);
+}
+
+function renderFeed() {
+  const feed = document.getElementById('feed');
+  const filtered = currentFilter === 'all'
+    ? allEvents
+    : allEvents.filter(e => e.agent === currentFilter);
+
+  // Keep header
+  const header = feed.querySelector('.feed-header');
+  feed.innerHTML = '';
+  feed.appendChild(header);
+
+  document.getElementById('feed-count').textContent = filtered.length + ' events';
+
+  filtered.slice(-200).forEach(ev => {
+    const row = document.createElement('div');
+    row.className = `event-row ${ev.type}`;
+    const t = new Date(ev.timestamp).toLocaleTimeString([], {hour:'2-digit',minute:'2-digit',second:'2-digit'});
+    row.innerHTML = `
+      <span class="event-time">${t}</span>
+      <span class="event-agent agent-color-${ev.agent}">${agentEmoji[ev.agent] || '·'} ${ev.agent}</span>
+      <span class="event-type-tag tag-${ev.type}">${ev.type}</span>
+      <span class="event-content">${ev.content}</span>
+    `;
+    feed.appendChild(row);
+  });
+
+  feed.scrollTop = feed.scrollHeight;
+}
+
+function filterAgent(name) {
+  currentFilter = name;
+  document.querySelectorAll('.agent-btn').forEach(b => b.classList.remove('active'));
+  event.currentTarget.classList.add('active');
+  renderFeed();
+}
+
+function clearFeed() {
+  allEvents = [];
+  renderFeed();
+}
+
+function renderApprovals(items) {
+  const container = document.getElementById('tab-approvals');
+  const noApprovals = document.getElementById('no-approvals');
+
+  // Remove old cards
+  container.querySelectorAll('.approval-card').forEach(c => c.remove());
+
+  if (items.length === 0) {
+    noApprovals.style.display = 'block';
+    return;
+  }
+
+  noApprovals.style.display = 'none';
+  items.forEach(item => {
+    const card = document.createElement('div');
+    card.className = 'approval-card';
+    card.innerHTML = `
+      <div class="approval-agent">${agentEmoji[item.agent] || ''} ${item.agent} wants to:</div>
+      <div class="approval-action">${item.action}<br><span style="color:var(--text3);font-size:10px">${JSON.stringify(item.details).slice(0,120)}</span></div>
+      <div class="approval-btns">
+        <button class="btn-approve" onclick="doApprove(${item.id}, this)">✓ Approve</button>
+        <button class="btn-reject" onclick="doReject(${item.id}, this)">✗ Reject</button>
+      </div>
+    `;
+    container.appendChild(card);
+  });
+}
+
+async function doApprove(id, btn) {
+  btn.disabled = true;
+  await fetch(`${API}/approvals/${id}/approve`, {method:'POST'});
+  btn.closest('.approval-card').classList.add('approved');
+  setTimeout(() => pollApprovals(), 500);
+}
+
+async function doReject(id, btn) {
+  btn.disabled = true;
+  await fetch(`${API}/approvals/${id}/reject`, {method:'POST'});
+  btn.closest('.approval-card').classList.add('rejected');
+  setTimeout(() => pollApprovals(), 500);
+}
+
+async function sendMessage() {
+  const input = document.getElementById('chat-input');
+  const agent = document.getElementById('chat-agent').value;
+  const msg = input.value.trim();
+  if (!msg) return;
+
+  const btn = document.getElementById('send-btn');
+  btn.disabled = true;
+  btn.textContent = '...';
+  input.value = '';
+
+  // Show user message in feed immediately
+  addEvent({
+    id: Date.now(), timestamp: new Date().toISOString(),
+    agent: 'katy', type: 'message', content: `→ ${agent}: ${msg}`
+  });
+
+  try {
+    const r = await fetch(`${API}/chat`, {
+      method: 'POST',
+      headers: {'Content-Type':'application/json'},
+      body: JSON.stringify({message: msg, agent})
+    });
+    // Response will appear in event stream automatically
+  } catch(e) {
+    addEvent({
+      id: Date.now(), timestamp: new Date().toISOString(),
+      agent: 'system', type: 'result', content: '⚠️ Failed to reach orchestrator'
+    });
+  }
+
+  btn.disabled = false;
+  btn.textContent = 'Send →';
+}
+
+function quickSend(agent, msg) {
+  document.getElementById('chat-agent').value = agent;
+  document.getElementById('chat-input').value = msg;
+  sendMessage();
+}
+
+function switchTab(name, el) {
+  document.querySelectorAll('.panel-tab').forEach(t => t.classList.remove('active'));
+  el.classList.add('active');
+  document.getElementById('tab-approvals').style.display = name === 'approvals' ? 'block' : 'none';
+  document.getElementById('tab-status').style.display = name === 'status' ? 'block' : 'none';
+}
+
+// Start polling
+connect();
+setInterval(pollEvents, 2000);
+setInterval(pollApprovals, 5000);
+setInterval(pollStatus, 10000);
+</script>
+</body>
+</html>

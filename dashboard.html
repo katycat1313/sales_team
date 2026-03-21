@@ -1,0 +1,861 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>iFixProfiles Agent Dashboard</title>
+  <style>
+    /* ── Reset & base ── */
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+    :root {
+      --bg:       #0d1117;
+      --surface:  #161b22;
+      --surface2: #1c2230;
+      --border:   #30363d;
+      --text:     #e6edf3;
+      --muted:    #8b949e;
+      --green:    #3fb950;
+      --green-dim:#1a3d25;
+      --red:      #f85149;
+      --red-dim:  #3d1a1a;
+      --blue:     #58a6ff;
+      --yellow:   #d29922;
+      --purple:   #bc8cff;
+      --radius:   10px;
+      --font:     'Segoe UI', system-ui, -apple-system, sans-serif;
+    }
+    html { font-size: 14px; }
+    body {
+      font-family: var(--font);
+      background: var(--bg);
+      color: var(--text);
+      min-height: 100vh;
+      display: flex;
+      flex-direction: column;
+    }
+
+    /* ── Scrollbar ── */
+    ::-webkit-scrollbar { width: 6px; height: 6px; }
+    ::-webkit-scrollbar-track { background: var(--surface); }
+    ::-webkit-scrollbar-thumb { background: var(--border); border-radius: 3px; }
+
+    /* ── Header ── */
+    header {
+      background: var(--surface);
+      border-bottom: 1px solid var(--border);
+      padding: 0 24px;
+      height: 60px;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      position: sticky;
+      top: 0;
+      z-index: 100;
+    }
+    .header-left { display: flex; align-items: center; gap: 12px; }
+    .logo {
+      font-size: 1.3rem;
+      font-weight: 700;
+      letter-spacing: -0.5px;
+      color: var(--text);
+    }
+    .logo span { color: var(--green); }
+    .status-badge {
+      display: flex;
+      align-items: center;
+      gap: 6px;
+      background: var(--green-dim);
+      border: 1px solid var(--green);
+      border-radius: 20px;
+      padding: 3px 10px;
+      font-size: 0.78rem;
+      font-weight: 600;
+      color: var(--green);
+    }
+    .dot {
+      width: 8px; height: 8px;
+      border-radius: 50%;
+      background: var(--green);
+      box-shadow: 0 0 6px var(--green);
+      animation: pulse 2s infinite;
+    }
+    @keyframes pulse {
+      0%, 100% { opacity: 1; }
+      50% { opacity: 0.4; }
+    }
+    .header-right { display: flex; align-items: center; gap: 16px; }
+    .refresh-info { color: var(--muted); font-size: 0.78rem; }
+    #last-refresh { color: var(--blue); }
+
+    /* ── Stats bar ── */
+    .stats-bar {
+      display: flex;
+      gap: 12px;
+      padding: 12px 24px;
+      background: var(--surface2);
+      border-bottom: 1px solid var(--border);
+      flex-wrap: wrap;
+    }
+    .stat-card {
+      flex: 1;
+      min-width: 120px;
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: var(--radius);
+      padding: 12px 16px;
+      text-align: center;
+    }
+    .stat-value {
+      font-size: 1.8rem;
+      font-weight: 700;
+      line-height: 1;
+      margin-bottom: 4px;
+    }
+    .stat-label { font-size: 0.72rem; color: var(--muted); text-transform: uppercase; letter-spacing: 0.5px; }
+    .stat-card.green .stat-value { color: var(--green); }
+    .stat-card.blue  .stat-value { color: var(--blue); }
+    .stat-card.yellow .stat-value { color: var(--yellow); }
+    .stat-card.red   .stat-value { color: var(--red); }
+
+    /* ── Main layout ── */
+    .main-grid {
+      display: grid;
+      grid-template-columns: 220px 1fr 300px;
+      gap: 0;
+      flex: 1;
+      min-height: 0;
+    }
+
+    /* ── Panels ── */
+    .panel {
+      border-right: 1px solid var(--border);
+      display: flex;
+      flex-direction: column;
+      overflow: hidden;
+    }
+    .panel:last-child { border-right: none; }
+    .panel-header {
+      padding: 14px 16px;
+      border-bottom: 1px solid var(--border);
+      font-weight: 600;
+      font-size: 0.85rem;
+      text-transform: uppercase;
+      letter-spacing: 0.6px;
+      color: var(--muted);
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      background: var(--surface);
+      flex-shrink: 0;
+    }
+    .panel-header .badge {
+      background: var(--yellow);
+      color: #000;
+      border-radius: 10px;
+      padding: 2px 7px;
+      font-size: 0.72rem;
+      font-weight: 700;
+    }
+    .panel-body {
+      flex: 1;
+      overflow-y: auto;
+      padding: 12px;
+    }
+
+    /* ── Agent list ── */
+    .agent-item {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      padding: 8px 10px;
+      border-radius: 7px;
+      margin-bottom: 4px;
+      background: var(--surface2);
+      border: 1px solid var(--border);
+      transition: border-color 0.2s;
+    }
+    .agent-item:hover { border-color: var(--green); }
+    .agent-dot { width: 8px; height: 8px; border-radius: 50%; background: var(--green); flex-shrink: 0; box-shadow: 0 0 5px var(--green); }
+    .agent-name { font-size: 0.82rem; color: var(--text); flex: 1; text-transform: capitalize; }
+    .agent-role { font-size: 0.68rem; color: var(--muted); }
+
+    /* ── Approval cards ── */
+    .approval-card {
+      background: var(--surface2);
+      border: 1px solid var(--border);
+      border-radius: var(--radius);
+      margin-bottom: 16px;
+      overflow: hidden;
+      transition: border-color 0.2s;
+    }
+    .approval-card:hover { border-color: var(--blue); }
+    .approval-card-header {
+      padding: 14px 16px 10px;
+      border-bottom: 1px solid var(--border);
+      background: var(--surface);
+    }
+    .prospect-name {
+      font-size: 1rem;
+      font-weight: 700;
+      color: var(--text);
+      margin-bottom: 4px;
+    }
+    .prospect-meta {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 8px;
+      margin-top: 6px;
+    }
+    .meta-tag {
+      font-size: 0.72rem;
+      padding: 2px 8px;
+      border-radius: 12px;
+      font-weight: 500;
+    }
+    .meta-tag.type  { background: #1c2d4a; color: var(--blue); border: 1px solid #2d4a6e; }
+    .meta-tag.loc   { background: #2d2a1a; color: var(--yellow); border: 1px solid #5a4d1a; }
+    .meta-tag.email { background: #1a2d1a; color: var(--green); border: 1px solid #2a5a2a; }
+    .meta-tag.phone { background: #2d1a2d; color: var(--purple); border: 1px solid #5a2a5a; }
+
+    .channels-section { padding: 12px 16px 0; }
+    .channel-block {
+      margin-bottom: 14px;
+      background: var(--bg);
+      border: 1px solid var(--border);
+      border-radius: 8px;
+      overflow: hidden;
+    }
+    .channel-label {
+      display: flex;
+      align-items: center;
+      gap: 6px;
+      padding: 7px 12px;
+      font-size: 0.75rem;
+      font-weight: 600;
+      text-transform: uppercase;
+      letter-spacing: 0.5px;
+      border-bottom: 1px solid var(--border);
+    }
+    .channel-label.email-lbl  { color: var(--green);  background: var(--green-dim); }
+    .channel-label.fb-lbl     { color: #4e94f5;        background: #1a2540; }
+    .channel-label.ig-lbl     { color: #e1506e;        background: #2d1a20; }
+    .channel-body {
+      padding: 12px;
+      font-size: 0.83rem;
+      line-height: 1.6;
+      color: var(--text);
+      white-space: pre-wrap;
+      word-break: break-word;
+    }
+    .subject-line {
+      font-size: 0.76rem;
+      color: var(--muted);
+      padding: 6px 12px;
+      border-bottom: 1px solid var(--border);
+      background: var(--surface2);
+    }
+    .subject-line strong { color: var(--text); }
+
+    .approval-actions {
+      display: flex;
+      gap: 10px;
+      padding: 12px 16px;
+      border-top: 1px solid var(--border);
+    }
+    .btn {
+      flex: 1;
+      padding: 10px;
+      border: none;
+      border-radius: 8px;
+      font-size: 0.85rem;
+      font-weight: 700;
+      cursor: pointer;
+      transition: all 0.15s;
+      letter-spacing: 0.3px;
+    }
+    .btn-approve {
+      background: var(--green);
+      color: #000;
+    }
+    .btn-approve:hover { background: #5acd6a; transform: translateY(-1px); box-shadow: 0 4px 12px rgba(63,185,80,0.4); }
+    .btn-reject {
+      background: var(--red-dim);
+      color: var(--red);
+      border: 1px solid var(--red);
+    }
+    .btn-reject:hover { background: var(--red); color: #fff; transform: translateY(-1px); box-shadow: 0 4px 12px rgba(248,81,73,0.4); }
+    .btn:disabled { opacity: 0.5; cursor: not-allowed; transform: none !important; box-shadow: none !important; }
+
+    .empty-state {
+      text-align: center;
+      padding: 48px 16px;
+      color: var(--muted);
+    }
+    .empty-state .icon { font-size: 2.5rem; margin-bottom: 8px; }
+    .empty-state p { font-size: 0.85rem; }
+
+    /* ── Log panel ── */
+    .log-item {
+      display: flex;
+      gap: 8px;
+      padding: 7px 8px;
+      border-radius: 6px;
+      margin-bottom: 4px;
+      font-size: 0.78rem;
+      border-left: 3px solid transparent;
+      background: var(--surface2);
+    }
+    .log-item.action { border-left-color: var(--green); }
+    .log-item.thought { border-left-color: var(--blue); }
+    .log-item.message { border-left-color: var(--yellow); }
+    .log-item.result  { border-left-color: var(--purple); }
+    .log-item.approval_needed { border-left-color: var(--red); }
+    .log-time { color: var(--muted); flex-shrink: 0; font-size: 0.72rem; padding-top: 1px; }
+    .log-agent { color: var(--blue); font-weight: 600; flex-shrink: 0; }
+    .log-content { color: var(--text); flex: 1; word-break: break-word; line-height: 1.4; }
+
+    /* ── Bottom: Scan section ── */
+    .scan-section {
+      border-top: 1px solid var(--border);
+      background: var(--surface);
+      padding: 16px 24px;
+    }
+    .scan-title {
+      font-size: 0.85rem;
+      font-weight: 600;
+      text-transform: uppercase;
+      letter-spacing: 0.6px;
+      color: var(--muted);
+      margin-bottom: 12px;
+    }
+    .scan-form {
+      display: flex;
+      gap: 10px;
+      flex-wrap: wrap;
+      align-items: flex-end;
+    }
+    .form-group { display: flex; flex-direction: column; gap: 4px; }
+    .form-label { font-size: 0.72rem; color: var(--muted); text-transform: uppercase; letter-spacing: 0.4px; }
+    select, input[type="text"], input[type="number"] {
+      background: var(--surface2);
+      border: 1px solid var(--border);
+      color: var(--text);
+      border-radius: 7px;
+      padding: 8px 12px;
+      font-size: 0.85rem;
+      font-family: var(--font);
+      outline: none;
+      transition: border-color 0.2s;
+    }
+    select:focus, input:focus { border-color: var(--blue); }
+    select { min-width: 160px; cursor: pointer; }
+    .btn-scan {
+      background: var(--blue);
+      color: #fff;
+      border: none;
+      border-radius: 7px;
+      padding: 8px 24px;
+      font-size: 0.85rem;
+      font-weight: 700;
+      cursor: pointer;
+      transition: all 0.15s;
+      white-space: nowrap;
+    }
+    .btn-scan:hover { background: #79b8ff; transform: translateY(-1px); box-shadow: 0 4px 12px rgba(88,166,255,0.4); }
+    .btn-scan:disabled { opacity: 0.5; cursor: not-allowed; transform: none !important; }
+    #scan-status {
+      font-size: 0.82rem;
+      color: var(--yellow);
+      align-self: center;
+      margin-left: 8px;
+    }
+
+    /* ── Toast notifications ── */
+    #toast-container {
+      position: fixed;
+      bottom: 24px;
+      right: 24px;
+      display: flex;
+      flex-direction: column;
+      gap: 8px;
+      z-index: 999;
+    }
+    .toast {
+      padding: 12px 16px;
+      border-radius: 8px;
+      font-size: 0.83rem;
+      font-weight: 500;
+      max-width: 300px;
+      animation: slideIn 0.2s ease;
+      border: 1px solid transparent;
+    }
+    .toast.success { background: var(--green-dim); color: var(--green); border-color: var(--green); }
+    .toast.error   { background: var(--red-dim);   color: var(--red);   border-color: var(--red); }
+    .toast.info    { background: #1c2d4a;           color: var(--blue);  border-color: var(--blue); }
+    @keyframes slideIn { from { transform: translateX(40px); opacity: 0; } to { transform: translateX(0); opacity: 1; } }
+
+    /* ── Responsive ── */
+    @media (max-width: 900px) {
+      .main-grid { grid-template-columns: 1fr; }
+      .panel { border-right: none; border-bottom: 1px solid var(--border); max-height: 350px; }
+      .stats-bar .stat-card { min-width: 80px; }
+    }
+  </style>
+</head>
+<body>
+
+<!-- ══ HEADER ══ -->
+<header>
+  <div class="header-left">
+    <div class="logo">i<span>Fix</span>Profiles <span style="color:var(--muted);font-weight:400;font-size:1rem;">Agent Dashboard</span></div>
+    <div class="status-badge">
+      <div class="dot"></div>
+      <span>ONLINE</span>
+    </div>
+  </div>
+  <div class="header-right">
+    <span class="refresh-info">Auto-refresh every 5s &nbsp;|&nbsp; Last: <span id="last-refresh">—</span></span>
+  </div>
+</header>
+
+<!-- ══ STATS BAR ══ -->
+<div class="stats-bar">
+  <div class="stat-card green">
+    <div class="stat-value" id="stat-agents">—</div>
+    <div class="stat-label">Agents Online</div>
+  </div>
+  <div class="stat-card blue">
+    <div class="stat-value" id="stat-prospects">—</div>
+    <div class="stat-label">Total Prospects</div>
+  </div>
+  <div class="stat-card yellow">
+    <div class="stat-value" id="stat-pending">—</div>
+    <div class="stat-label">Pending Approvals</div>
+  </div>
+  <div class="stat-card red">
+    <div class="stat-value" id="stat-logs">—</div>
+    <div class="stat-label">Activity Logs</div>
+  </div>
+</div>
+
+<!-- ══ MAIN GRID ══ -->
+<div class="main-grid">
+
+  <!-- LEFT: Agents -->
+  <div class="panel">
+    <div class="panel-header">
+      <span>Agents</span>
+      <span class="badge" id="agent-count">0</span>
+    </div>
+    <div class="panel-body" id="agent-list">
+      <div class="empty-state"><p>Loading agents…</p></div>
+    </div>
+  </div>
+
+  <!-- CENTER: Approvals -->
+  <div class="panel">
+    <div class="panel-header">
+      <span>Pending Approvals</span>
+      <span class="badge" id="approval-count">0</span>
+    </div>
+    <div class="panel-body" id="approval-list">
+      <div class="empty-state">
+        <div class="icon">✅</div>
+        <p>No pending approvals.<br>All clear!</p>
+      </div>
+    </div>
+  </div>
+
+  <!-- RIGHT: Logs -->
+  <div class="panel">
+    <div class="panel-header">
+      <span>Activity Log</span>
+      <span style="font-size:0.72rem;color:var(--muted);text-transform:none;letter-spacing:0;font-weight:400;">live</span>
+    </div>
+    <div class="panel-body" id="log-list">
+      <div class="empty-state"><p>Loading logs…</p></div>
+    </div>
+  </div>
+
+</div>
+
+<!-- ══ SCAN SECTION ══ -->
+<div class="scan-section">
+  <div class="scan-title">Start Prospect Scan</div>
+  <div class="scan-form">
+    <div class="form-group">
+      <label class="form-label" for="niche-select">Niche</label>
+      <select id="niche-select">
+        <option value="plumbers">Plumbers</option>
+        <option value="HVAC contractors">HVAC</option>
+        <option value="auto repair shops">Auto Repair</option>
+        <option value="roofers">Roofers</option>
+        <option value="electricians">Electricians</option>
+        <option value="landscapers">Landscapers</option>
+        <option value="painters">Painters</option>
+        <option value="general contractors">General Contractors</option>
+      </select>
+    </div>
+    <div class="form-group">
+      <label class="form-label" for="city-input">City / Location</label>
+      <input type="text" id="city-input" placeholder="e.g. Houston TX" value="Houston TX" style="min-width:200px;" />
+    </div>
+    <div class="form-group">
+      <label class="form-label" for="limit-input">Limit</label>
+      <input type="number" id="limit-input" value="10" min="1" max="50" style="width:70px;" />
+    </div>
+    <button class="btn-scan" id="btn-scan" onclick="startScan()">▶ START SCAN</button>
+    <span id="scan-status"></span>
+  </div>
+</div>
+
+<!-- ══ TOAST CONTAINER ══ -->
+<div id="toast-container"></div>
+
+<script>
+const API = 'http://localhost:8000';
+
+// ── Agent role labels ──
+const AGENT_ROLES = {
+  coordinator:      'Orchestrator',
+  gbp_scout:        'GBP Scout',
+  gbp_researcher:   'GBP Researcher',
+  gbp_sales:        'GBP Sales',
+  outreach:         'Outreach',
+  sales:            'Sales',
+  sales_ops:        'Sales Ops',
+  small_biz_expert: 'SMB Expert',
+  research:         'Researcher',
+  engineer:         'Engineer',
+};
+
+// ── Helpers ──
+function fmt(iso) {
+  if (!iso) return '';
+  const d = new Date(iso);
+  return d.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', second: '2-digit' });
+}
+
+function toast(msg, type = 'info') {
+  const el = document.createElement('div');
+  el.className = `toast ${type}`;
+  el.textContent = msg;
+  document.getElementById('toast-container').appendChild(el);
+  setTimeout(() => el.remove(), 4000);
+}
+
+function escape(str) {
+  if (str == null) return '';
+  return String(str)
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;');
+}
+
+// ── Fetch with timeout ──
+async function apiFetch(path, opts = {}) {
+  const ctrl = new AbortController();
+  const tid = setTimeout(() => ctrl.abort(), 8000);
+  try {
+    const res = await fetch(API + path, { signal: ctrl.signal, ...opts });
+    clearTimeout(tid);
+    return res;
+  } catch (e) {
+    clearTimeout(tid);
+    throw e;
+  }
+}
+
+// ── Render agents ──
+function renderAgents(agents) {
+  const el = document.getElementById('agent-list');
+  document.getElementById('agent-count').textContent = agents.length;
+  document.getElementById('stat-agents').textContent = agents.length;
+  el.innerHTML = agents.map(a => `
+    <div class="agent-item">
+      <div class="agent-dot"></div>
+      <div>
+        <div class="agent-name">${escape(a.replace(/_/g,' '))}</div>
+        <div class="agent-role">${escape(AGENT_ROLES[a] || '')}</div>
+      </div>
+    </div>
+  `).join('');
+}
+
+// ── Render approvals ──
+function renderApprovals(items) {
+  const el = document.getElementById('approval-list');
+  const pending = items.filter(i => i.status === 'pending');
+  document.getElementById('approval-count').textContent = pending.length;
+  document.getElementById('stat-pending').textContent = pending.length;
+
+  if (pending.length === 0) {
+    el.innerHTML = `
+      <div class="empty-state">
+        <div class="icon">✅</div>
+        <p>No pending approvals.<br>All clear!</p>
+      </div>`;
+    return;
+  }
+
+  el.innerHTML = pending.map(item => buildApprovalCard(item)).join('');
+}
+
+function buildApprovalCard(item) {
+  const d = item.details || {};
+  const prospectName  = d.prospect_name  || d.name        || item.action || 'Unknown Prospect';
+  const bizType       = d.business_type  || d.niche        || d.type      || '';
+  const location      = d.location       || d.city         || '';
+  const email         = d.to             || d.email        || '';
+  const phone         = d.phone          || '';
+  const emailSubject  = d.subject        || '';
+  const emailBody     = d.body           || d.email_body   || '';
+  const fbUrl         = d.facebook_url   || '';
+  const fbMsg         = d.facebook_message || d.fb_message || emailBody;
+  const igHandle      = d.instagram_handle || d.ig_handle  || '';
+  const igMsg         = d.instagram_message || d.ig_message || emailBody;
+
+  // Meta tags
+  let meta = '';
+  if (bizType) meta += `<span class="meta-tag type">${escape(bizType)}</span>`;
+  if (location) meta += `<span class="meta-tag loc">📍 ${escape(location)}</span>`;
+  if (email)   meta += `<span class="meta-tag email">✉️ ${escape(email)}</span>`;
+  if (phone)   meta += `<span class="meta-tag phone">📞 ${escape(phone)}</span>`;
+
+  // Channel blocks
+  let channels = '';
+
+  if (emailBody) {
+    channels += `
+      <div class="channel-block">
+        <div class="channel-label email-lbl">✉️ Email</div>
+        ${emailSubject ? `<div class="subject-line"><strong>Subject:</strong> ${escape(emailSubject)}</div>` : ''}
+        <div class="channel-body">${escape(emailBody)}</div>
+      </div>`;
+  }
+
+  if (fbUrl || fbMsg) {
+    channels += `
+      <div class="channel-block">
+        <div class="channel-label fb-lbl">📘 Facebook DM${fbUrl ? ' · <span style="font-weight:400;text-transform:none;font-size:0.72rem;color:var(--muted);">' + escape(fbUrl) + '</span>' : ''}</div>
+        <div class="channel-body">${escape(fbMsg || '(same as email body)')}</div>
+      </div>`;
+  }
+
+  if (igHandle || igMsg) {
+    channels += `
+      <div class="channel-block">
+        <div class="channel-label ig-lbl">📸 Instagram DM${igHandle ? ' · <span style="font-weight:400;text-transform:none;font-size:0.72rem;color:var(--muted);">@' + escape(igHandle) + '</span>' : ''}</div>
+        <div class="channel-body">${escape(igMsg || '(same as email body)')}</div>
+      </div>`;
+  }
+
+  if (!channels) {
+    // Fallback: show raw details
+    channels = `
+      <div class="channel-block">
+        <div class="channel-label" style="color:var(--muted);">Details</div>
+        <div class="channel-body">${escape(JSON.stringify(d, null, 2))}</div>
+      </div>`;
+  }
+
+  return `
+    <div class="approval-card" id="card-${item.id}">
+      <div class="approval-card-header">
+        <div class="prospect-name">${escape(prospectName)}</div>
+        <div style="font-size:0.75rem;color:var(--muted);margin-top:2px;">${escape(item.action)} · ${fmt(item.timestamp)}</div>
+        <div class="prospect-meta">${meta}</div>
+      </div>
+      <div class="channels-section">${channels}</div>
+      <div class="approval-actions">
+        <button class="btn btn-approve" id="approve-btn-${item.id}" onclick="approveItem(${item.id})">
+          ✅ APPROVE &amp; SEND
+        </button>
+        <button class="btn btn-reject" id="reject-btn-${item.id}" onclick="rejectItem(${item.id})">
+          ✖ REJECT
+        </button>
+      </div>
+    </div>`;
+}
+
+// ── Approve / Reject ──
+async function approveItem(id) {
+  const btn = document.getElementById(`approve-btn-${id}`);
+  const rej = document.getElementById(`reject-btn-${id}`);
+  if (btn) { btn.disabled = true; btn.textContent = '⏳ Sending…'; }
+  if (rej) rej.disabled = true;
+  try {
+    const res = await apiFetch(`/approvals/${id}/approve`, { method: 'POST' });
+    if (res.ok) {
+      const data = await res.json();
+      toast(`Approved & sent! ${data.sent ? '📧 Email delivered' : ''}`, 'success');
+      document.getElementById(`card-${id}`)?.remove();
+      // Update count
+      const countEl = document.getElementById('approval-count');
+      const statEl  = document.getElementById('stat-pending');
+      const cur = parseInt(countEl.textContent) || 0;
+      const next = Math.max(0, cur - 1);
+      countEl.textContent = next;
+      statEl.textContent  = next;
+    } else {
+      const err = await res.json().catch(() => ({}));
+      toast(`Error: ${err.error || res.statusText}`, 'error');
+      if (btn) { btn.disabled = false; btn.textContent = '✅ APPROVE & SEND'; }
+      if (rej) rej.disabled = false;
+    }
+  } catch (e) {
+    toast(`Network error: ${e.message}`, 'error');
+    if (btn) { btn.disabled = false; btn.textContent = '✅ APPROVE & SEND'; }
+    if (rej) rej.disabled = false;
+  }
+}
+
+async function rejectItem(id) {
+  const btn = document.getElementById(`reject-btn-${id}`);
+  const app = document.getElementById(`approve-btn-${id}`);
+  if (btn) { btn.disabled = true; btn.textContent = '⏳ …'; }
+  if (app) app.disabled = true;
+  try {
+    const res = await apiFetch(`/approvals/${id}/reject`, { method: 'POST' });
+    if (res.ok) {
+      toast('Outreach rejected.', 'info');
+      document.getElementById(`card-${id}`)?.remove();
+      const countEl = document.getElementById('approval-count');
+      const statEl  = document.getElementById('stat-pending');
+      const cur = parseInt(countEl.textContent) || 0;
+      const next = Math.max(0, cur - 1);
+      countEl.textContent = next;
+      statEl.textContent  = next;
+    } else {
+      const err = await res.json().catch(() => ({}));
+      toast(`Error: ${err.error || res.statusText}`, 'error');
+      if (btn) { btn.disabled = false; btn.textContent = '✖ REJECT'; }
+      if (app) app.disabled = false;
+    }
+  } catch (e) {
+    toast(`Network error: ${e.message}`, 'error');
+    if (btn) { btn.disabled = false; btn.textContent = '✖ REJECT'; }
+    if (app) app.disabled = false;
+  }
+}
+
+// ── Render logs ──
+let lastLogCount = 0;
+function renderLogs(logs) {
+  const el = document.getElementById('log-list');
+  document.getElementById('stat-logs').textContent = logs.length;
+
+  if (logs.length === 0) {
+    el.innerHTML = '<div class="empty-state"><p>No activity yet.</p></div>';
+    return;
+  }
+
+  // Only re-render if new entries arrived
+  if (logs.length === lastLogCount) return;
+  lastLogCount = logs.length;
+
+  const slice = logs.slice(0, 80); // show latest 80
+  el.innerHTML = slice.map(log => `
+    <div class="log-item ${escape(log.type || '')}">
+      <span class="log-time">${fmt(log.timestamp)}</span>
+      <span class="log-agent">${escape(log.agent)}</span>
+      <span class="log-content">${escape((log.content || '').substring(0, 200))}</span>
+    </div>
+  `).join('');
+}
+
+// ── Render prospects stat ──
+function renderProspects(data) {
+  let count = 0;
+  if (Array.isArray(data)) count = data.length;
+  else if (data && typeof data === 'object') {
+    count = data.total || data.count || Object.values(data).reduce((a, v) => a + (Array.isArray(v) ? v.length : 1), 0);
+  }
+  document.getElementById('stat-prospects').textContent = count;
+}
+
+// ── Main refresh loop ──
+async function refresh() {
+  try {
+    // Parallel fetches
+    const [rootRes, approvalsRes, logsRes, prospectsRes] = await Promise.allSettled([
+      apiFetch('/'),
+      apiFetch('/approvals'),
+      apiFetch('/logs'),
+      apiFetch('/prospects'),
+    ]);
+
+    if (rootRes.status === 'fulfilled' && rootRes.value.ok) {
+      const data = await rootRes.value.json();
+      renderAgents(data.agents || []);
+    }
+
+    if (approvalsRes.status === 'fulfilled' && approvalsRes.value.ok) {
+      const data = await approvalsRes.value.json();
+      renderApprovals(Array.isArray(data) ? data : []);
+    }
+
+    if (logsRes.status === 'fulfilled' && logsRes.value.ok) {
+      const data = await logsRes.value.json();
+      renderLogs(Array.isArray(data) ? data : []);
+    }
+
+    if (prospectsRes.status === 'fulfilled' && prospectsRes.value.ok) {
+      const data = await prospectsRes.value.json();
+      renderProspects(data);
+    }
+
+    // Update last-refresh time
+    document.getElementById('last-refresh').textContent = new Date().toLocaleTimeString();
+
+  } catch (e) {
+    console.warn('Refresh error:', e);
+  }
+}
+
+// ── Scan ──
+async function startScan() {
+  const niche    = document.getElementById('niche-select').value;
+  const location = document.getElementById('city-input').value.trim();
+  const limit    = parseInt(document.getElementById('limit-input').value) || 10;
+  const btn      = document.getElementById('btn-scan');
+  const status   = document.getElementById('scan-status');
+
+  if (!location) { toast('Please enter a city / location.', 'error'); return; }
+
+  btn.disabled = true;
+  status.textContent = '⏳ Scanning… this may take a minute';
+  toast(`Starting scan: ${niche} in ${location}`, 'info');
+
+  try {
+    const res = await apiFetch('/gbp-pipeline', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ niche, location, limit }),
+    });
+    if (res.ok) {
+      const data = await res.json();
+      status.textContent = '✅ Scan complete!';
+      toast(`Scan done! Check approvals panel.`, 'success');
+      await refresh();
+    } else {
+      const err = await res.json().catch(() => ({}));
+      status.textContent = '❌ Error: ' + (err.detail || res.statusText);
+      toast('Scan failed: ' + (err.detail || res.statusText), 'error');
+    }
+  } catch (e) {
+    status.textContent = '❌ ' + e.message;
+    toast('Scan error: ' + e.message, 'error');
+  } finally {
+    btn.disabled = false;
+    setTimeout(() => { status.textContent = ''; }, 6000);
+  }
+}
+
+// ── Bootstrap ──
+refresh();
+setInterval(refresh, 5000);
+</script>
+</body>
+</html>

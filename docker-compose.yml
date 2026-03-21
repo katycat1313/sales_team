@@ -1,0 +1,34 @@
+services:
+  orchestrator:
+    build: ./orchestrator
+    container_name: agent_orchestrator
+    ports:
+      - "8000:8000"
+    volumes:
+      - ./orchestrator:/app
+      - ./orchestrator/logs:/app/logs
+      - ./orchestrator/memory:/app/memory
+      - ./orchestrator/sessions:/app/sessions
+      - ./dashboard:/app/dashboard
+    env_file:
+      - .env
+    restart: unless-stopped
+
+  telegram_bot:
+    build: ./telegram_bot
+    container_name: agent_telegram
+    dns:
+      - 8.8.8.8
+      - 8.8.4.4
+    volumes:
+      - ./telegram_bot:/app
+    env_file:
+      - .env
+    depends_on:
+      - orchestrator
+    restart: unless-stopped
+networks:
+  default:
+    driver: bridge
+    driver_opts:
+      com.docker.network.bridge.enable_ip_masquerade: "true"

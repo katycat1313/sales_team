@@ -1,0 +1,36 @@
+# Environment variables - NEVER commit these
+.env
+.env.local
+.env.*
+
+# Sessions - contain login cookies
+orchestrator/sessions/
+sessions/
+
+# Logs
+logs/
+*.log
+*.jsonl
+
+# Database
+*.db
+*.sqlite
+
+# Python
+__pycache__/
+*.pyc
+*.pyo
+.pytest_cache/
+
+# Node
+node_modules/
+
+# Docker
+.docker/
+
+# OS
+.DS_Store
+Thumbs.db
+
+# VS Code
+.vscode/settings.json

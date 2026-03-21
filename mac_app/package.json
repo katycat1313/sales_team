@@ -1,0 +1,23 @@
+{
+  "name": "katy-agent-command",
+  "version": "1.0.0",
+  "description": "Katy's Agent Team Command Center",
+  "main": "main.js",
+  "scripts": {
+    "start": "electron .",
+    "build": "electron-builder --mac"
+  },
+  "build": {
+    "appId": "com.katy.agentcommand",
+    "productName": "Agent Command",
+    "mac": {
+      "category": "public.app-category.productivity",
+      "target": "dmg"
+    },
+    "files": ["main.js", "../dashboard/**"]
+  },
+  "devDependencies": {
+    "electron": "^30.0.0",
+    "electron-builder": "^24.0.0"
+  }
+}
