@@ -326,6 +326,28 @@ def delete_prospect(prospect_id: int):
     return {"deleted": True, "id": prospect_id}
 
 
+@app.post("/prospects/fill-phones")
+async def fill_missing_phones():
+    """Find phone numbers for all prospects that have none."""
+    from memory.memory import get_prospects, update_prospect, get_db
+    from tools.gbp_audit import lookup_phone_number
+    prospects = get_prospects()
+    missing = [p for p in prospects if not p.get("phone")]
+    log_event("system", "action", f"Phone lookup: filling {len(missing)} prospects with no phone")
+    filled = 0
+    for p in missing:
+        phone = await lookup_phone_number(
+            p.get("business_name", ""),
+            p.get("location", ""),
+            website=p.get("website", "")
+        )
+        if phone:
+            update_prospect(p["business_name"], p["location"], phone=phone)
+            filled += 1
+            log_event("system", "action", f"📞 Found phone for {p['business_name']}: {phone}")
+    return {"checked": len(missing), "filled": filled}
+
+
 @app.post("/execute")
 async def execute_mission(body: dict):
     """Run multiple agents in sequence with output chaining (Swarm-style handoff)."""

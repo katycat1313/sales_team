@@ -106,12 +106,15 @@ Format as JSON array: [{{"business_type": "...", "typical_issues": ["...", "..."
         for p in prospects:
             if "error" in p:
                 continue
+            # Phone: prefer Maps/audit found dict, fall back to top-level (YP/Yelp)
+            phone = (p.get("found") or {}).get("phone") or p.get("phone", "")
+            website = (p.get("found") or {}).get("website") or p.get("website", "")
             is_new = save_prospect(
                 business_name=p.get("name", ""),
                 location=location,
                 niche=niche,
-                phone=p.get("found", {}).get("phone", ""),
-                website=p.get("found", {}).get("website", ""),
+                phone=phone,
+                website=website,
                 maps_url=p.get("maps_url", ""),
                 gbp_score=p.get("score", 0),
                 gbp_issues=p.get("issues", []),

@@ -367,6 +367,7 @@ body{display:grid;grid-template-columns:56px 1fr}
       📊 Google Sheet
     </a>
     <button onclick="loadProspects()" style="background:var(--g3);color:var(--ink);padding:9px 16px;border-radius:8px;border:1px solid var(--rim2);font-size:13px;cursor:pointer">↺ Refresh</button>
+    <button onclick="fillPhones()" style="background:var(--teal2);color:var(--teal);padding:9px 16px;border-radius:8px;border:1px solid rgba(62,207,178,.3);font-size:13px;cursor:pointer">📞 Find Missing Phones</button>
     <select id="filter-priority" onchange="loadProspects()" style="background:var(--g3);color:var(--ink);padding:9px 12px;border-radius:8px;border:1px solid var(--rim2);font-size:13px;cursor:pointer">
       <option value="">All</option>
       <option value="CALLABLE" selected>📞 Ready to Call (score &lt;5)</option>
@@ -688,6 +689,17 @@ function stopAutocall(done=false){
   document.getElementById('start-autocall-wrap').style.display='block';
   document.getElementById('btn-start-autocall').textContent=done?'✓ All Called — Restart?':'📞 Start Auto-Call — Eric Dials Everyone';
   document.querySelectorAll('[id^=card-]').forEach(c=>c.style.borderColor='');
+}
+
+async function fillPhones(){
+  const btn=event.target.closest('button');
+  btn.disabled=true;btn.textContent='🔍 Looking up...';
+  try{
+    const r=await fetch(`${API}/prospects/fill-phones`,{method:'POST'});
+    const d=await r.json();
+    btn.textContent=`✓ Found ${d.filled} phones`;
+    setTimeout(()=>{btn.disabled=false;btn.textContent='📞 Find Missing Phones';loadProspects();},3000);
+  }catch(e){btn.disabled=false;btn.textContent='📞 Find Missing Phones';}
 }
 
 async function triggerScan(){

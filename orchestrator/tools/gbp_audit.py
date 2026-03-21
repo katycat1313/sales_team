@@ -562,9 +562,29 @@ async def audit_gbp_from_maps_url(maps_url: str, business_name: str) -> dict:
                     return el ? (el.getAttribute(attr) || '') : '';
                 };
 
-                // Phone
-                const phoneEl = document.querySelector('button[data-item-id*="phone"], [aria-label*="Phone:"], [data-tooltip*="phone"]');
-                const phone = phoneEl ? phoneEl.textContent.trim() : '';
+                // Phone — try every known Maps selector
+                let phone = '';
+                const phoneSelectors = [
+                    'button[data-item-id*="phone"]',
+                    '[data-item-id*="phone"]',
+                    '[aria-label*="Phone:"]',
+                    '[aria-label*="phone" i]',
+                    '[data-tooltip*="phone" i]',
+                    'a[href^="tel:"]',
+                ];
+                for (const sel of phoneSelectors) {
+                    const el = document.querySelector(sel);
+                    if (el) {
+                        phone = el.getAttribute('aria-label') || el.textContent.trim() || el.getAttribute('href') || '';
+                        phone = phone.replace('Phone: ','').replace('tel:','').trim();
+                        if (phone.match(/\d{3}/)) break;
+                    }
+                }
+                // Last resort: regex scan page text for phone pattern
+                if (!phone.match(/\d{3}/)) {
+                    const m = document.body.innerText.match(/\(?\d{3}\)?[\s.\-]\d{3}[\s.\-]\d{4}/);
+                    if (m) phone = m[0];
+                }
 
                 // Website
                 const webEl = document.querySelector('a[data-item-id="authority"], [aria-label*="website" i], [data-tooltip*="website" i]');
@@ -668,6 +688,52 @@ async def audit_gbp_from_maps_url(maps_url: str, business_name: str) -> dict:
     }
 
 
+async def lookup_phone_number(business_name: str, location: str, website: str = "") -> str:
+    """
+    Last-resort phone finder. Tries:
+    1. Google search for the business name + city + phone
+    2. Their website (if we have it) — scrapes for tel: links
+    Returns a cleaned phone string or "" if not found.
+    """
+    # ── Try Google search first ──
+    query = f'"{business_name}" {location} phone'
+    q_encoded = query.replace(' ', '+').replace('"', '%22')
+    url = f"https://www.google.com/search?q={q_encoded}&gl=us&hl=en"
+    try:
+        async with httpx.AsyncClient(headers=_http_headers(), follow_redirects=True, timeout=12) as client:
+            r = await client.get(url)
+            if r.status_code == 200:
+                m = re.search(r'\(?\d{3}\)?[\s.\-]\d{3}[\s.\-]\d{4}', r.text)
+                if m:
+                    raw = m.group(0).strip()
+                    digits = re.sub(r'\D', '', raw)
+                    if len(digits) == 10:
+                        return f"({digits[:3]}) {digits[3:6]}-{digits[6:]}"
+    except Exception:
+        pass
+
+    # ── Try their website ──
+    if website and website.startswith("http"):
+        try:
+            async with httpx.AsyncClient(headers=_http_headers(), follow_redirects=True, timeout=10) as client:
+                r = await client.get(website)
+                if r.status_code == 200:
+                    # tel: links are the most reliable
+                    m = re.search(r'href=["\']tel:[\+1]*([\d\-\(\) \.]{10,15})["\']', r.text)
+                    if m:
+                        digits = re.sub(r'\D', '', m.group(1))
+                        if len(digits) == 10:
+                            return f"({digits[:3]}) {digits[3:6]}-{digits[6:]}"
+                    # Fallback: any phone pattern in page
+                    m2 = re.search(r'\(?\d{3}\)?[\s.\-]\d{3}[\s.\-]\d{4}', r.text)
+                    if m2:
+                        return m2.group(0).strip()
+        except Exception:
+            pass
+
+    return ""
+
+
 async def audit_gbp(business_name: str, location: str, maps_url: str = "") -> dict:
     """Public API — audit a business's GBP completeness."""
     if maps_url and "google.com/maps/place" in maps_url:
@@ -751,11 +817,22 @@ async def run_prospect_scan(niche: str, location: str, limit: int = 15) -> list:
         if from_maps or has_issues or no_gbp:
             prospect = {**biz, **audit}
 
-            # Promote phone from YP/Yelp if found dict doesn't have one
+            # Promote phone from YP/Yelp if Maps audit didn't find one
             yp_phone = biz.get("phone", "")
             maps_phone = prospect.get("found", {}).get("phone", "")
             if yp_phone and not maps_phone:
                 prospect.setdefault("found", {})["phone"] = yp_phone
+
+            # Still no phone? Try Google search + website lookup
+            if not prospect.get("found", {}).get("phone"):
+                found_phone = await lookup_phone_number(
+                    biz_name,
+                    location,
+                    website=prospect.get("found", {}).get("website", "")
+                )
+                if found_phone:
+                    prospect.setdefault("found", {})["phone"] = found_phone
+                    print(f"[GBP Audit]   📞 Phone found via lookup: {found_phone}")
 
             prospects.append(prospect)
             issues_preview = "; ".join(audit.get("issues", [])[:2])

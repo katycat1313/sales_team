@@ -400,32 +400,7 @@ async def make_call(
             timeout=30
         )
         result = resp.json()
-
-        # Also call Katy's phone silently so she can listen in from the start
-        if katy_phone and result.get("id"):
-            listen_payload = {
-                "phoneNumberId": phone_number_id,
-                "customer": {
-                    "number": f"+1{katy_phone.replace('+1','').replace('-','').replace(' ','')}",
-                    "name": "Katy (Listen Mode)",
-                },
-                "assistantId": assistant_id,
-                "assistantOverrides": {
-                    "firstMessage": "",  # Silent — no greeting to Katy
-                    "model": {
-                        "provider": "openai",
-                        "model": "gpt-4o",
-                        "messages": [{"role": "system", "content": "You are silent. Do not speak. This is a listen-only line for Katy to monitor the call. Say nothing unless Katy speaks to you directly."}]
-                    }
-                },
-                "metadata": {"role": "listener", "parent_call": result.get("id")}
-            }
-            # Fire and forget — don't block on this
-            try:
-                await client.post(f"{VAPI_BASE_URL}/call", headers=HEADERS, json=listen_payload, timeout=10)
-            except Exception:
-                pass
-
+        # Katy listens via the dashboard WebSocket (monitor.listenUrl) — no phone call needed
         return result
 
 
