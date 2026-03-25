@@ -1,4 +1,5 @@
 import json
+import os
 import re
 from .base import BaseAgent
 from memory.memory import save_contact, get_contacts, contact_exists, mark_contacted, get_prospects, update_prospect
@@ -8,12 +9,11 @@ class OutreachAgent(BaseAgent):
         # Load persuasion knowledge base
         persuasion_kb = ""
         try:
-            import os
             kb_path = os.path.join(os.path.dirname(__file__), "../memory/persuasion_techniques.md")
             with open(kb_path, "r") as f:
                 persuasion_kb = f.read()
-        except Exception:
-            pass
+        except Exception as e:
+            print(f"[Outreach] Could not load persuasion KB: {e}")
 
         super().__init__(
             name="outreach",
@@ -80,7 +80,7 @@ class OutreachAgent(BaseAgent):
                 system = f"""
 You are writing a cold outreach email FROM Katy (ifixprofiles@gmail.com) TO a local business owner.
 Katy's service: She fixes and optimizes Google Business Profiles for local businesses.
-Price: $197 total ($99 deposit upfront, $98 on completion).
+Price: $197 total (one-time). If they ask about splitting, it's $98 now and $97 on completion.
 
 Business: {biz_name} in {location}
 Their GBP issues: {', '.join(issues) if issues else 'incomplete profile'}
@@ -100,7 +100,7 @@ BODY:
 [email body here]
 ---
 """
-                draft = await self.call_claude(system, f"Draft GBP outreach for {biz_name}")
+                draft = await self.call_llm(system, f"Draft GBP outreach for {biz_name}")
                 parts = self._extract_email_parts(draft)
 
                 if parts["subject"] and parts["body"]:
@@ -113,8 +113,8 @@ BODY:
                             await browser_tool.start()
                         facebook_url = await browser_tool.find_facebook_page(biz_name, location)
                         instagram_handle = await browser_tool.find_instagram_handle(biz_name, location)
-                    except Exception:
-                        pass
+                    except Exception as e:
+                        print(f"[Outreach] Social media lookup failed for {biz_name}: {e}")
 
                     self.needs_approval(
                         action="send_email",
@@ -160,7 +160,7 @@ BODY:
 [message body]
 ---
 """
-            draft = await self.call_claude(system, task)
+            draft = await self.call_llm(system, task)
             parts = self._extract_email_parts(draft)
 
             self.needs_approval(
@@ -206,3 +206,4 @@ BODY:
             self.think(f"Send failed: {result.get('error')}")
 
         return result
+

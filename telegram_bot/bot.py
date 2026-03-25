@@ -180,6 +180,7 @@ def main():
         ("networking",  "networking",         "Identify the best people for Katy to connect with on LinkedIn today",   "-"),
         ("coach",       "coach",              "Start an interview practice session",                                    ""),
         ("research",    "research",           "Research the AI developer job market right now",                         ""),
+        ("researchasst","research_assistant", "Compile raw data, lists, or organized findings for a research task",   ""),
         ("smallbiz",    "small_biz_expert",   "Identify small businesses in the Charleston WV area with intake problems",""),
         ("solutions",   "solutions_architect","Design a solution for a small contractor intake problem",                "-"),
         ("automations", "automations",        "Identify automation opportunities for Katy's agent team internally",    ""),
@@ -197,7 +198,7 @@ def main():
         app.add_handler(CommandHandler(cmd, make_cmd(agent, default, emoji)))
 
     app.add_handler(MessageHandler(filters.TEXT & ~filters.COMMAND, handle_message))
-    print(" Telegram bot online- 15 agents ready")
+    print(" Telegram bot online- 16 agents ready")
     app.run_polling()
 
 if __name__ == "__main__":

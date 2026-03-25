@@ -270,8 +270,8 @@ class BrowserTool:
         except Exception as e:
             try:
                 await context.close()
-            except Exception:
-                pass
+            except Exception as close_error:
+                print(f"[Browser] Failed to close context after Instagram post error: {close_error}")
             return {"error": str(e), "posted": False}
 
     async def send_instagram_dm(self, username: str, message: str) -> dict:
@@ -329,8 +329,8 @@ class BrowserTool:
         except Exception as e:
             try:
                 await context.close()
-            except Exception:
-                pass
+            except Exception as close_error:
+                print(f"[Browser] Failed to close context after Instagram DM error: {close_error}")
             return {"error": str(e), "sent": False}
 
     async def find_instagram_handle(self, business_name: str, location: str) -> str:
@@ -459,8 +459,8 @@ class BrowserTool:
         except Exception as e:
             try:
                 await context.close()
-            except Exception:
-                pass
+            except Exception as close_error:
+                print(f"[Browser] Failed to close context after Facebook DM error: {close_error}")
             return {"error": str(e), "sent": False}
 
 

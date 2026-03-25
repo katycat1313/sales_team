@@ -5,7 +5,10 @@ from .base import BaseAgent
 VALID_AGENTS = [
     "gbp_scout", "gbp_researcher", "gbp_sales",
     "outreach", "sales", "sales_ops",
-    "small_biz_expert", "research", "engineer",
+    "small_biz_expert", "research", "research_assistant", "engineer",
+    "team_leader", "job_seeker", "scout", "networking", "coach",
+    "lead_gen", "marketing", "biz_dev", "automations",
+    "solutions_architect", "resume_builder", "interview_coach",
 ]
 
 class CoordinatorAgent(BaseAgent):
@@ -58,7 +61,7 @@ Valid agents: {', '.join(VALID_AGENTS)}
 THE CREW:
 - gbp_scout: hits Google Maps, finds businesses with missing/broken GBPs, scores them HOT/WARM
 - gbp_researcher: digs into each prospect — finds owner name, email, phone, website intel, builds pitch dossier
-- gbp_sales: writes the proposal, generates Stripe deposit link ($99 upfront), handles the close
+- gbp_sales: writes the proposal, generates Stripe payment link ($197 full or $98 split deposit), handles the close
 - outreach: writes killer cold emails and DMs — short, specific, human — queues for Katy approval
 - sales: handles objections, follow-ups, rebuttals — knows every excuse a small biz owner uses
 - sales_ops: tracks the pipeline, logs who was contacted, flags who needs follow-up
@@ -76,7 +79,7 @@ ROUTING RULES:
 
 End with JSON: {{"agents": ["name1", "name2"]}}
 """
-        routing_response = await self.call_claude(routing_system, message)
+        routing_response = await self.call_llm(routing_system, message)
         agent_names = self._extract_agents(routing_response)
 
         # Strip the JSON line from the explanation shown to Katy
@@ -107,7 +110,7 @@ Synthesize the agent results into a clear, direct update for Katy.
 - Flag anything awaiting her approval
 - Keep it concise
 """
-        summary = await self.call_claude(synthesis_system, synthesis_input)
+        summary = await self.call_llm(synthesis_system, synthesis_input)
         self.act("Synthesis complete")
         return summary
 
@@ -121,7 +124,7 @@ Synthesize the agent results into a clear, direct update for Katy.
 Break this task into agent assignments. Pick the right agents from: {', '.join(VALID_AGENTS)}
 Respond with a brief plan then end with JSON: {{"agents": ["name1", "name2"]}}
 """
-        plan = await self.call_claude(routing_system, task)
+        plan = await self.call_llm(routing_system, task)
         agent_names = self._extract_agents(plan)
 
         if not agent_names or not self.dispatch_fn:
@@ -136,4 +139,4 @@ Respond with a brief plan then end with JSON: {{"agents": ["name1", "name2"]}}
             + "\n\n".join(f"[{name}]\n{result}" for name, result in results.items())
         )
         synthesis_system = "Summarize these agent results into a concise action report for Katy."
-        return await self.call_claude(synthesis_system, synthesis_input)
+        return await self.call_llm(synthesis_system, synthesis_input)

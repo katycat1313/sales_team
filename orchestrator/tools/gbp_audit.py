@@ -20,6 +20,7 @@ import random
 import re
 import httpx
 from typing import Optional
+from constants import MAX_PROSPECT_SCORE
 
 try:
     from playwright.async_api import async_playwright
@@ -297,8 +298,8 @@ async def search_google_maps_playwright(niche: str, location: str, limit: int = 
                         await btn.click()
                         await asyncio.sleep(2)
                         break
-                except Exception:
-                    pass
+                except Exception as e:
+                    print(f"[Maps] Consent click failed for selector {sel!r}: {e}")
 
             await asyncio.sleep(2)
 
@@ -312,8 +313,8 @@ async def search_google_maps_playwright(niche: str, location: str, limit: int = 
                         else window.scrollBy(0, 600);
                     }""")
                     await asyncio.sleep(1.2)
-                except Exception:
-                    pass
+                except Exception as e:
+                    print(f"[Maps] Scroll pass {i + 1} failed: {e}")
 
             # Extract listings via JavaScript
             # Google Maps structure: <a class="hfpxzc" aria-label="BUSINESS NAME" href="/maps/place/...">
@@ -548,8 +549,8 @@ async def audit_gbp_from_maps_url(maps_url: str, business_name: str) -> dict:
                         await btn.click()
                         await asyncio.sleep(2)
                         break
-                except Exception:
-                    pass
+                except Exception as e:
+                    print(f"[GBP Audit] Consent click failed for selector {sel!r}: {e}")
 
             # Extract all data via JavaScript
             data = await page.evaluate("""() => {
@@ -709,8 +710,8 @@ async def lookup_phone_number(business_name: str, location: str, website: str = 
                     digits = re.sub(r'\D', '', raw)
                     if len(digits) == 10:
                         return f"({digits[:3]}) {digits[3:6]}-{digits[6:]}"
-    except Exception:
-        pass
+    except Exception as e:
+        print(f"[GBP Audit] Phone lookup (Google) failed for {business_name!r}: {e}")
 
     # ── Try their website ──
     if website and website.startswith("http"):
@@ -728,8 +729,8 @@ async def lookup_phone_number(business_name: str, location: str, website: str = 
                     m2 = re.search(r'\(?\d{3}\)?[\s.\-]\d{3}[\s.\-]\d{4}', r.text)
                     if m2:
                         return m2.group(0).strip()
-        except Exception:
-            pass
+        except Exception as e:
+            print(f"[GBP Audit] Phone lookup (website) failed for {business_name!r}: {e}")
 
     return ""
 
@@ -794,6 +795,7 @@ async def run_prospect_scan(niche: str, location: str, limit: int = 15) -> list:
     print(f"[GBP Audit] Found {len(valid)} businesses — auditing GBP quality...")
 
     prospects = []
+    dropped_high_score = 0
     for biz in valid:
         biz_name = biz.get("name", "")
         maps_url  = biz.get("maps_url", "")
@@ -813,8 +815,17 @@ async def run_prospect_scan(niche: str, location: str, limit: int = 15) -> list:
         from_maps = biz.get("source") == "google_maps"
         has_issues = audit.get("issue_count", 0) >= 2
         no_gbp = not audit.get("has_gbp", True)
+        score = float(audit.get("score", 10))
 
         if from_maps or has_issues or no_gbp:
+            # Hard gate: never include prospects scoring above configured threshold.
+            if score > MAX_PROSPECT_SCORE:
+                dropped_high_score += 1
+                print(
+                    f"[GBP Audit]   skip: {biz_name} (score {score}/10 > max {MAX_PROSPECT_SCORE})"
+                )
+                continue
+
             prospect = {**biz, **audit}
 
             # Promote phone from YP/Yelp if Maps audit didn't find one
@@ -848,5 +859,9 @@ async def run_prospect_scan(niche: str, location: str, limit: int = 15) -> list:
     order = {"HOT": 0, "WARM": 1, "COLD": 2}
     prospects.sort(key=lambda p: order.get(p.get("priority", "COLD"), 2))
 
+    if dropped_high_score:
+        print(
+            f"[GBP Audit] Filtered out {dropped_high_score} businesses above score {MAX_PROSPECT_SCORE}"
+        )
     print(f"[GBP Audit] ═══ COMPLETE: {len(prospects)} prospects found ═══\n")
     return prospects

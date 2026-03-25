@@ -220,6 +220,11 @@ body{display:grid;grid-template-columns:56px 1fr}
        onmouseover="this.style.opacity='.8'" onmouseout="this.style.opacity='1'">
       <span id="scan-ico">🔍</span> <span id="scan-lbl">Scan for Prospects</span>
     </button>
+    <button onclick="nav('missions',document.querySelector('.ri[onclick*=missions]'));focusScheduleForm()"
+       style="display:flex;align-items:center;gap:8px;background:var(--g3);color:var(--ink);padding:10px 18px;border-radius:8px;border:1px solid var(--rim2);font-size:13px;cursor:pointer;transition:opacity .15s"
+       onmouseover="this.style.opacity='.8'" onmouseout="this.style.opacity='1'">
+      <span>⏰</span> Schedule Trigger
+    </button>
   </div>
 
   <!-- COMMAND TEAM -->
@@ -286,7 +291,6 @@ body{display:grid;grid-template-columns:56px 1fr}
   <div class="agents-grid mb28" style="grid-template-columns:1fr 1fr 1fr 1fr 1fr">
     <div class="ac live" style="border-top-color:var(--sky)"><span class="ac-ico">🔍</span><div class="ac-name">Scout</div><div class="ac-role">Searches job boards daily</div><div class="ac-st"><div class="orb orb-on" style="background:var(--sky);box-shadow:0 0 5px var(--sky)"></div><span class="c-sky" id="st-scout">searching</span></div></div>
     <div class="ac"><span class="ac-ico">💼</span><div class="ac-name">Job Seeker</div><div class="ac-role">Leads job search strategy</div><div class="ac-st"><div class="orb orb-off"></div><span class="c-ink3" id="st-job_seeker">idle</span></div></div>
-    <div class="ac"><span class="ac-ico">📋</span><div class="ac-name">Asst. Job Seeker</div><div class="ac-role">Tracks and monitors applications</div><div class="ac-st"><div class="orb orb-off"></div><span class="c-ink3" id="st-asst_job_seeker">idle</span></div></div>
     <div class="ac"><span class="ac-ico">📄</span><div class="ac-name">Resume Builder</div><div class="ac-role">Tailors resume per role</div><div class="ac-st"><div class="orb orb-off"></div><span class="c-ink3" id="st-resume_builder">idle</span></div></div>
     <div class="ac"><span class="ac-ico">🔗</span><div class="ac-name">Networking</div><div class="ac-role">LinkedIn connections and relationships</div><div class="ac-st"><div class="orb orb-off"></div><span class="c-ink3" id="st-networking">idle</span></div></div>
   </div>
@@ -326,7 +330,6 @@ body{display:grid;grid-template-columns:56px 1fr}
         <option value="sales_ops">sales ops</option>
         <option value="coach">coach</option>
         <option value="job_seeker">job seeker</option>
-        <option value="asst_job_seeker">asst job seeker</option>
         <option value="resume_builder">resume builder</option>
         <option value="networking">networking</option>
         <option value="scout">scout</option>
@@ -341,11 +344,36 @@ body{display:grid;grid-template-columns:56px 1fr}
 
 <!-- MISSIONS -->
 <div class="pg" id="pg-missions"><div class="pg-inner">
-  <div class="eyebrow">active work</div><div class="headline">Missions</div><div class="sub">Ongoing tasks your agents are running.</div>
-  <div class="mission"><div class="mission-hdr"><div class="mission-title">🔍 Weekly job hunt — AI developer roles</div><div class="mission-badge" style="background:var(--teal2);color:var(--teal);border:1px solid rgba(62,207,178,.25)">running</div></div><div class="prog"><div class="prog-fill" style="width:68%;background:var(--teal)"></div></div><div class="mission-meta"><span>Scout · Job Seeker</span><span>14 found · 68%</span></div></div>
-  <div class="mission"><div class="mission-hdr"><div class="mission-title">🏪 Charleston WV contractor outreach</div><div class="mission-badge" style="background:var(--gold3);color:var(--gold);border:1px solid rgba(212,168,67,.25)">approval needed</div></div><div class="prog"><div class="prog-fill" style="width:90%;background:var(--gold)"></div></div><div class="mission-meta"><span>Small Biz Expert · Solutions Architect · Outreach</span><span>5 drafts ready</span></div></div>
-  <div class="mission"><div class="mission-hdr"><div class="mission-title">🎯 Interview prep — Solutions Engineer</div><div class="mission-badge" style="background:var(--violet2);color:var(--violet);border:1px solid rgba(139,110,245,.25)">scheduled</div></div><div class="prog"><div class="prog-fill" style="width:0%;background:var(--violet)"></div></div><div class="mission-meta"><span>Coach</span><span>starts tomorrow 9am</span></div></div>
-  <div style="margin-top:20px"><button class="send-btn" style="width:100%;padding:12px;border-radius:10px;font-size:12px">+ New Mission</button></div>
+  <div class="eyebrow">manual scheduling</div><div class="headline">Missions</div><div class="sub">Manual-only mode: no automatic scheduler. Create one-time triggers below.</div>
+
+  <div class="card" style="margin-bottom:16px">
+    <div style="font-family:'IBM Plex Mono',monospace;font-size:9px;letter-spacing:.14em;text-transform:uppercase;color:var(--ink3);margin-bottom:14px">Create Scheduled Trigger</div>
+    <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-bottom:10px">
+      <select id="sched-agent" class="sinput" style="width:100%">
+        <option value="team_leader">team_leader</option>
+        <option value="coordinator">coordinator</option>
+        <option value="gbp_scout">gbp_scout</option>
+        <option value="gbp_researcher">gbp_researcher</option>
+        <option value="outreach">outreach</option>
+        <option value="lead_gen">lead_gen</option>
+        <option value="small_biz_expert">small_biz_expert</option>
+        <option value="scout">scout</option>
+        <option value="coach">coach</option>
+        <option value="engineer">engineer</option>
+      </select>
+      <input id="sched-time" class="sinput" type="datetime-local" style="width:100%">
+    </div>
+    <div style="display:flex;gap:10px;align-items:center;flex-wrap:wrap">
+      <input id="sched-task" class="sinput" placeholder="Task to run at scheduled time..." style="flex:1;min-width:260px">
+      <button class="send-btn" id="sched-btn" onclick="createScheduledEvent(this)" style="padding:10px 16px">+ Schedule Trigger</button>
+    </div>
+    <div id="sched-msg" style="margin-top:10px;font-size:12px;color:var(--ink3)">Only manual messages and manual scheduled triggers can run agents.</div>
+  </div>
+
+  <div class="card">
+    <div style="font-family:'IBM Plex Mono',monospace;font-size:9px;letter-spacing:.14em;text-transform:uppercase;color:var(--ink3);margin-bottom:12px">Scheduled Queue</div>
+    <div id="sched-list"><div class="empty">No scheduled triggers yet.</div></div>
+  </div>
 </div></div>
 
 <!-- OUTBOX -->
@@ -369,10 +397,11 @@ body{display:grid;grid-template-columns:56px 1fr}
     <button onclick="loadProspects()" style="background:var(--g3);color:var(--ink);padding:9px 16px;border-radius:8px;border:1px solid var(--rim2);font-size:13px;cursor:pointer">↺ Refresh</button>
     <button onclick="fillPhones()" style="background:var(--teal2);color:var(--teal);padding:9px 16px;border-radius:8px;border:1px solid rgba(62,207,178,.3);font-size:13px;cursor:pointer">📞 Find Missing Phones</button>
     <select id="filter-priority" onchange="loadProspects()" style="background:var(--g3);color:var(--ink);padding:9px 12px;border-radius:8px;border:1px solid var(--rim2);font-size:13px;cursor:pointer">
-      <option value="">All</option>
-      <option value="CALLABLE" selected>📞 Ready to Call (score &lt;5)</option>
+      <option value="HAS_PHONE" selected>📞 Has Phone (all)</option>
+      <option value="">All (including no-phone)</option>
       <option value="HOT">🔥 HOT only</option>
       <option value="WARM">🌤 WARM only</option>
+      <option value="COLD">❄ COLD only</option>
     </select>
     <span id="prospect-count" style="color:var(--ink3);font-size:12px"></span>
   </div>
@@ -499,10 +528,7 @@ body{display:grid;grid-template-columns:56px 1fr}
 <div class="pg" id="pg-logs"><div class="pg-inner">
   <div class="eyebrow">system records</div><div class="headline">Logs</div><div class="sub">Full event history. Errors highlighted.</div>
   <div class="card"><div id="log-list">
-    <div class="log-row"><span class="log-t">startup</span><span class="log-ok">OK</span><span class="log-msg">Agent team online. All 15 agents ready.</span></div>
-    <div class="log-row"><span class="log-t">+0:00:02</span><span class="log-info">INFO</span><span class="log-msg">Scout: beginning job search — Wellfound, Remote.co, LinkedIn</span></div>
-    <div class="log-row"><span class="log-t">+0:00:32</span><span class="log-info">INFO</span><span class="log-msg">Scout: 14 roles found matching profile and pay range</span></div>
-    <div class="log-row"><span class="log-t">+0:01:21</span><span class="log-warn">WARN</span><span class="log-msg">Outreach: 2 items pending approval — waiting on Katy</span></div>
+    <div class="log-row"><span class="log-t">—</span><span class="log-info">LIVE</span><span class="log-msg">Loading events from backend…</span></div>
   </div></div>
 </div></div>
 
@@ -510,13 +536,13 @@ body{display:grid;grid-template-columns:56px 1fr}
 <div class="pg" id="pg-settings"><div class="pg-inner">
   <div class="eyebrow">configuration</div><div class="headline">Settings</div><div class="sub">Control how your agent team operates.</div>
   <div class="card mb8"><div style="font-family:'IBM Plex Mono',monospace;font-size:9px;letter-spacing:.14em;text-transform:uppercase;color:var(--ink3);margin-bottom:14px">API Keys</div>
-    <div class="srow"><div class="sinfo"><div class="slabel">Anthropic API Key</div><div class="sdesc">Powers all 15 Claude agents</div></div><input class="sinput" type="password" value="sk-ant-***"></div>
+    <div class="srow"><div class="sinfo"><div class="slabel">Anthropic API Key</div><div class="sdesc">Powers all Claude agents</div></div><input class="sinput" type="password" value="sk-ant-***"></div>
     <div class="srow"><div class="sinfo"><div class="slabel">Telegram Bot Token</div><div class="sdesc">Mobile command interface</div></div><input class="sinput" type="password" value="8360739636:***"></div>
   </div>
   <div class="card mb8"><div style="font-family:'IBM Plex Mono',monospace;font-size:9px;letter-spacing:.14em;text-transform:uppercase;color:var(--ink3);margin-bottom:14px">Agent Behavior</div>
     <div class="srow"><div class="sinfo"><div class="slabel">Require approval before sending</div><div class="sdesc">Agents ask before any email, DM, or application goes out</div></div><div class="tog on" onclick="this.classList.toggle('on')"></div></div>
-    <div class="srow"><div class="sinfo"><div class="slabel">Proactive mode</div><div class="sdesc">Agents work on their own schedule without being asked</div></div><div class="tog on" onclick="this.classList.toggle('on')"></div></div>
-    <div class="srow"><div class="sinfo"><div class="slabel">Daily briefing via Telegram</div><div class="sdesc">Team leader sends morning summary at 7am</div></div><div class="tog on" onclick="this.classList.toggle('on')"></div></div>
+    <div class="srow"><div class="sinfo"><div class="slabel">Proactive mode</div><div class="sdesc">Disabled: agents run only by manual message or manual scheduled trigger</div></div><div class="tog" onclick="this.classList.toggle('on')"></div></div>
+    <div class="srow"><div class="sinfo"><div class="slabel">Daily briefing via Telegram</div><div class="sdesc">Disabled until you manually schedule it</div></div><div class="tog" onclick="this.classList.toggle('on')"></div></div>
   </div>
   <div class="card"><div style="font-family:'IBM Plex Mono',monospace;font-size:9px;letter-spacing:.14em;text-transform:uppercase;color:var(--ink3);margin-bottom:14px">Limits</div>
     <div class="srow"><div class="sinfo"><div class="slabel">Daily API spend cap</div><div class="sdesc">Agents pause if this is hit</div></div><input class="sinput" value="$5.00"></div>
@@ -526,7 +552,7 @@ body{display:grid;grid-template-columns:56px 1fr}
 
 </div>
 <script>
-const API='http://localhost:8000';
+const API=window.location.origin;
 const SHEETS_URL='https://docs.google.com/spreadsheets/d/12PoYqddT3FzQAlvL871cR4kUfk3X37M_qO10oT2V65c/edit';
 // Update sheets links
 document.querySelectorAll('#sheets-link,#sheets-link2').forEach(a=>a.href=SHEETS_URL);
@@ -549,8 +575,8 @@ async function loadProspects(){
   try{
     const r=await fetch(`${API}/prospects`);
     allProspects=await r.json();
-    let data=filter==='CALLABLE'
-      ? allProspects.filter(p=>p.gbp_score<5||p.priority==='HOT')
+    let data=filter==='HAS_PHONE'
+      ? allProspects.filter(p=>p.phone)
       : filter
         ? allProspects.filter(p=>p.priority===filter)
         : allProspects;
@@ -616,6 +642,108 @@ async function deleteProspect(id,btn){
 
 function tryParseJSON(v){try{return typeof v==='string'?JSON.parse(v):v;}catch{return null;}}
 function escHtml(s){return (s||'').replace(/'/g,"\\'")}
+function escText(s){return (s||'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');}
+
+function toLocalInputValue(date){
+  const d=new Date(date.getTime()-date.getTimezoneOffset()*60000);
+  return d.toISOString().slice(0,16);
+}
+
+function focusScheduleForm(){
+  const task=document.getElementById('sched-task');
+  const time=document.getElementById('sched-time');
+  if(time&&!time.value){
+    const dt=new Date(Date.now()+10*60*1000);
+    dt.setSeconds(0,0);
+    time.value=toLocalInputValue(dt);
+  }
+  if(task)task.focus();
+}
+
+function scheduleStatusStyle(status){
+  if(status==='scheduled')return 'background:var(--sky2);color:var(--sky);border:1px solid rgba(90,162,255,.25)';
+  if(status==='running')return 'background:var(--gold3);color:var(--gold);border:1px solid rgba(212,168,67,.25)';
+  if(status==='completed')return 'background:var(--green2);color:var(--green);border:1px solid rgba(68,232,136,.25)';
+  if(status==='cancelled')return 'background:var(--g3);color:var(--ink3);border:1px solid var(--rim2)';
+  return 'background:var(--rose2);color:var(--rose);border:1px solid rgba(240,96,122,.25)';
+}
+
+async function loadScheduledEvents(includeHistory=false){
+  const list=document.getElementById('sched-list');
+  if(!list)return;
+  try{
+    const r=await fetch(`${API}/scheduled-events?include_history=${includeHistory?'true':'false'}`);
+    const items=await r.json();
+    if(!Array.isArray(items)||!items.length){
+      list.innerHTML='<div class="empty">No scheduled triggers yet.</div>';
+      return;
+    }
+
+    list.innerHTML='';
+    items.forEach(item=>{
+      const runAt=new Date(item.run_at);
+      const card=document.createElement('div');
+      card.className='mission';
+      card.innerHTML=`
+        <div class="mission-hdr">
+          <div class="mission-title">#${item.id} ${escText(item.agent)}: ${escText(item.task||'')}</div>
+          <div class="mission-badge" style="${scheduleStatusStyle(item.status)}">${escText(item.status||'scheduled')}</div>
+        </div>
+        <div class="mission-meta" style="margin-top:10px;display:flex;align-items:center;justify-content:space-between;gap:10px;flex-wrap:wrap">
+          <span>Runs: ${runAt.toLocaleString()}</span>
+          ${item.status==='scheduled' ? `<button onclick="cancelScheduledEvent(${item.id},this)" style="background:var(--rose2);color:var(--rose);border:1px solid transparent;padding:6px 10px;border-radius:8px;font-size:11px;cursor:pointer">Cancel</button>` : ''}
+        </div>
+      `;
+      list.appendChild(card);
+    });
+  }catch(e){
+    list.innerHTML='<div class="empty">Could not load scheduled triggers.</div>';
+  }
+}
+
+async function createScheduledEvent(btn){
+  const agent=document.getElementById('sched-agent')?.value||'team_leader';
+  const taskInput=document.getElementById('sched-task');
+  const timeInput=document.getElementById('sched-time');
+  const msg=document.getElementById('sched-msg');
+  const task=(taskInput?.value||'').trim();
+  const timeVal=(timeInput?.value||'').trim();
+
+  if(!task){if(msg)msg.textContent='Please enter a task.';return;}
+  if(!timeVal){if(msg)msg.textContent='Please choose a date/time.';return;}
+
+  const runAt=new Date(timeVal);
+  if(Number.isNaN(runAt.getTime())){if(msg)msg.textContent='Invalid date/time.';return;}
+
+  btn.disabled=true;btn.textContent='Scheduling...';
+  try{
+    const r=await fetch(`${API}/scheduled-events`,{
+      method:'POST',headers:{'Content-Type':'application/json'},
+      body:JSON.stringify({agent,task,run_at:runAt.toISOString()})
+    });
+    const d=await r.json();
+    if(d.error){
+      if(msg)msg.textContent=`Error: ${d.error}`;
+    }else{
+      if(msg)msg.textContent=`Scheduled #${d.scheduled.id} for ${new Date(d.scheduled.run_at).toLocaleString()}`;
+      taskInput.value='';
+      await loadScheduledEvents();
+      await pollSt();
+    }
+  }catch(e){
+    if(msg)msg.textContent='Could not reach orchestrator.';
+  }
+  btn.disabled=false;btn.textContent='+ Schedule Trigger';
+}
+
+async function cancelScheduledEvent(id,btn){
+  if(btn)btn.disabled=true;
+  try{
+    await fetch(`${API}/scheduled-events/${id}/cancel`,{method:'POST'});
+    await loadScheduledEvents();
+    await pollSt();
+  }catch(e){}
+}
 
 async function callProspect(phone,name,city,niche,btn){
   if(!btn)btn=event?.target;
@@ -636,16 +764,20 @@ async function callProspect(phone,name,city,niche,btn){
 }
 
 // ── AUTO-CALL QUEUE ──────────────────────────────────────────────────────────
-function startAutocall(){
-  // Only call prospects with score < 5 OR HOT priority — most likely to convert
-  autocallQueue=allProspects.filter(p=>p.phone&&(p.gbp_score<5||p.priority==='HOT')).map(p=>({
+async function startAutocall(){
+  // Reload prospects fresh before starting so we always have data
+  if(!allProspects.length){
+    await loadProspects();
+  }
+  const visible=allProspects.filter(p=>p.phone&&p.phone.trim());
+  autocallQueue=visible.map(p=>({
     phone:p.phone.replace(/\D/g,''),
     name:p.business_name,
     city:p.location||'',
     niche:p.niche||'',
     id:p.id
-  }));
-  if(!autocallQueue.length){alert('No prospects with phone numbers.');return;}
+  })).filter(p=>p.phone.length>=10);
+  if(!autocallQueue.length){alert('No prospects with phone numbers found. Click Refresh first.');return;}
   autocallIndex=0;
   autocallRunning=true;
   document.getElementById('autocall-bar').style.display='block';
@@ -717,7 +849,7 @@ async function triggerScan(){
   setTimeout(()=>{btn.disabled=false;lbl.textContent='Scan for Prospects';ico.textContent='🔍';loadProspects();},3000);
 }
 function nav(p,el){document.querySelectorAll('.pg').forEach(x=>x.classList.remove('on'));document.querySelectorAll('.ri').forEach(x=>x.classList.remove('on'));document.getElementById('pg-'+p).classList.add('on');if(el)el.classList.add('on');if(p==='prospects')loadProspects();}
-const aC={team_leader:'var(--violet)',coordinator:'var(--violet)',scout:'var(--sky)',outreach:'var(--teal)',engineer:'var(--ember)',coach:'var(--green)',katy:'var(--gold)',system:'var(--ink4)',research:'#4488ff',research_assistant:'#4488ff',small_biz_expert:'var(--teal)',biz_dev:'var(--teal)',automations:'var(--teal)',solutions_architect:'var(--teal)',lead_gen:'var(--ember)',marketing:'var(--ember)',sales:'var(--ember)',sales_ops:'var(--ember)',job_seeker:'var(--sky)',asst_job_seeker:'var(--sky)',resume_builder:'var(--sky)',networking:'var(--sky)',interview_coach:'var(--green)'};
+const aC={team_leader:'var(--violet)',coordinator:'var(--violet)',scout:'var(--sky)',outreach:'var(--teal)',engineer:'var(--ember)',coach:'var(--green)',katy:'var(--gold)',system:'var(--ink4)',research:'#4488ff',research_assistant:'#4488ff',small_biz_expert:'var(--teal)',biz_dev:'var(--teal)',automations:'var(--teal)',solutions_architect:'var(--teal)',lead_gen:'var(--ember)',marketing:'var(--ember)',sales:'var(--ember)',sales_ops:'var(--ember)',job_seeker:'var(--sky)',resume_builder:'var(--sky)',networking:'var(--sky)',interview_coach:'var(--green)'};
 const tS={thought:{bg:'var(--g3)',c:'var(--ink4)'},action:{bg:'var(--sky2)',c:'var(--sky)'},message:{bg:'var(--violet2)',c:'var(--violet)'},approval_needed:{bg:'var(--gold3)',c:'var(--gold)'},result:{bg:'var(--green2)',c:'var(--green)'}};
 function addRow(ev){
   const feed=document.getElementById('feed');
@@ -838,9 +970,7 @@ setInterval(()=>{
   if(document.getElementById('pg-prospects')?.classList.contains('on'))pollActiveCalls();
 },5000);
 
-const demo=[{id:1,timestamp:new Date().toISOString(),agent:'system',type:'result',content:'Agent team online — 15 agents ready'},{id:2,timestamp:new Date().toISOString(),agent:'team_leader',type:'thought',content:"Initializing. Loading Katy's brief. All teams standing by."},{id:3,timestamp:new Date().toISOString(),agent:'scout',type:'action',content:'Starting job search: AI developer roles, remote, $50k+'},{id:4,timestamp:new Date().toISOString(),agent:'small_biz_expert',type:'thought',content:'Scanning Charleston WV area for contractors with intake problems...'},{id:5,timestamp:new Date().toISOString(),agent:'scout',type:'result',content:'14 roles found — top: AI Implementation Specialist @ Synthesia ($65k)'},{id:6,timestamp:new Date().toISOString(),agent:'outreach',type:'approval_needed',content:'Draft ready for Hugging Face recruiter — waiting for Katy approval'},{id:7,timestamp:new Date().toISOString(),agent:'team_leader',type:'message',content:'Scout found 14 jobs. Small Biz Expert identified 2 contractor prospects. Outreach has drafts in your Outbox.'},];
-let di=0;function runDemo(){if(di<demo.length){addRow(demo[di++]);setTimeout(runDemo,650+Math.random()*750);}}
-setTimeout(runDemo,300);checkSess();setInterval(poll,2500);setInterval(pollSt,8000);setInterval(pollAppr,6000);
+checkSess();focusScheduleForm();loadScheduledEvents();setInterval(poll,2500);setInterval(pollSt,8000);setInterval(pollAppr,6000);setInterval(loadScheduledEvents,10000);
 </script>
 </body>
 </html>

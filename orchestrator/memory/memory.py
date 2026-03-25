@@ -22,6 +22,7 @@ import os
 from datetime import datetime
 from pathlib import Path
 from typing import Optional
+from constants import MAX_PROSPECT_SCORE, ALLOWED_TARGET_NICHES
 
 DB_PATH = Path(os.getenv("MEMORY_DB_PATH", "/app/memory/agent_memory.db"))
 
@@ -351,12 +352,27 @@ def get_memory_summary() -> dict:
 
 def save_prospect(business_name: str, location: str, **kwargs) -> bool:
     """Save a GBP prospect. Returns True if new. Also pushes to Google Sheets."""
+    # Hard gate: do not persist businesses outside approved target niches.
+    niche = kwargs.get("niche")
+    if niche is not None:
+        allowed_niches = {n.lower() for n in ALLOWED_TARGET_NICHES}
+        if str(niche).strip().lower() not in allowed_niches:
+            return False
+
+    # Hard gate: do not persist businesses with scores above threshold.
+    score = kwargs.get("gbp_score")
+    if score is not None:
+        try:
+            if float(score) > MAX_PROSPECT_SCORE:
+                return False
+        except (TypeError, ValueError):
+            pass
+
     conn = get_db()
-    import json as _json
     # Serialize dict fields
     for field in ("gbp_issues", "audit_data"):
         if field in kwargs and isinstance(kwargs[field], (list, dict)):
-            kwargs[field] = _json.dumps(kwargs[field])
+            kwargs[field] = json.dumps(kwargs[field])
     fields = ["business_name", "location"] + list(kwargs.keys())
     placeholders = ", ".join(["?"] * len(fields))
     values = [business_name, location] + list(kwargs.values())
@@ -367,15 +383,13 @@ def save_prospect(business_name: str, location: str, **kwargs) -> bool:
         )
         conn.commit()
         conn.close()
-        # Push to Google Sheets if webhook is configured
+        # Push to Google Sheets (gspread service account)
         try:
             from tools.sheets_tool import push_prospect_sync
-            import os
-            if os.getenv("GOOGLE_SHEETS_WEBHOOK_URL"):
-                prospect_data = {"business_name": business_name, "location": location, **kwargs}
-                push_prospect_sync(prospect_data)
-        except Exception:
-            pass  # Never block a save due to Sheets failure
+            prospect_data = {"business_name": business_name, "location": location, **kwargs}
+            push_prospect_sync(prospect_data)
+        except Exception as e:
+            print(f"[Memory] Sheets sync failed for {business_name}: {e}")
         return True
     except Exception:
         conn.close()
@@ -384,11 +398,10 @@ def save_prospect(business_name: str, location: str, **kwargs) -> bool:
 
 def update_prospect(business_name: str, location: str, **kwargs):
     """Update fields on an existing prospect."""
-    import json as _json
     conn = get_db()
     for field in ("gbp_issues", "audit_data"):
         if field in kwargs and isinstance(kwargs[field], (list, dict)):
-            kwargs[field] = _json.dumps(kwargs[field])
+            kwargs[field] = json.dumps(kwargs[field])
     if not kwargs:
         conn.close()
         return
@@ -428,6 +441,52 @@ def get_prospect(business_name: str, location: str) -> Optional[dict]:
     ).fetchone()
     conn.close()
     return dict(row) if row else None
+
+
+def cleanup_prospects_by_policy(dry_run: bool = True) -> dict:
+    """
+    Remove prospects that violate current targeting policy.
+    Policy:
+    - niche must be in ALLOWED_TARGET_NICHES
+    - gbp_score must be <= MAX_PROSPECT_SCORE
+    """
+    conn = get_db()
+
+    allowed = [n.lower() for n in ALLOWED_TARGET_NICHES]
+    placeholders = ", ".join(["?"] * len(allowed))
+
+    where_clause = (
+        f"COALESCE(LOWER(TRIM(niche)), '') NOT IN ({placeholders}) "
+        "OR COALESCE(gbp_score, 999) > ?"
+    )
+    params = [*allowed, MAX_PROSPECT_SCORE]
+
+    rows = conn.execute(
+        f"SELECT id, business_name, location, niche, gbp_score FROM prospects WHERE {where_clause}",
+        params,
+    ).fetchall()
+
+    total_violations = len(rows)
+    deleted = 0
+
+    if not dry_run and total_violations:
+        conn.execute(f"DELETE FROM prospects WHERE {where_clause}", params)
+        conn.commit()
+        deleted = total_violations
+
+    sample = [dict(r) for r in rows[:25]]
+    conn.close()
+
+    return {
+        "dry_run": dry_run,
+        "policy": {
+            "allowed_niches": ALLOWED_TARGET_NICHES,
+            "max_score": MAX_PROSPECT_SCORE,
+        },
+        "violations_found": total_violations,
+        "deleted": deleted,
+        "sample": sample,
+    }
 
 
 # Initialize on import
