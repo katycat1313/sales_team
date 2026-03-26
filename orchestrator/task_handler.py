@@ -5,6 +5,9 @@ Dispatch agents in sequence, chaining each agent's output as context
 into the next agent's input, exactly like OpenAI Swarm handoffs.
 """
 
+import asyncio
+
+
 class TaskHandler:
     def __init__(self, agent_map: dict, katy_brief: str, log_event, request_approval):
         self.agent_map = agent_map
@@ -16,11 +19,7 @@ class TaskHandler:
         factory = self.agent_map.get(name)
         if not factory:
             return None
-        # agent_map values are either classes or lambda factories
-        try:
-            return factory(self.katy_brief, self.log_event, self.request_approval)
-        except TypeError:
-            return factory(self.katy_brief, self.log_event, self.request_approval)
+        return factory(self.katy_brief, self.log_event, self.request_approval)
 
     async def run_agent(self, name: str, task: str) -> str:
         """Run a single named agent and return its result."""
@@ -62,7 +61,6 @@ class TaskHandler:
 
     async def dispatch_parallel(self, agent_names: list, task: str) -> dict:
         """Run agents in parallel (no chaining) — useful for independent lookups."""
-        import asyncio
         results = await asyncio.gather(
             *[self.run_agent(name, task) for name in agent_names],
             return_exceptions=True

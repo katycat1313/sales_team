@@ -8,8 +8,8 @@ Get it from: dashboard.stripe.com → Developers → API keys
 
 Pricing model:
 - Free GBP audit (lead magnet, automated by agents)
-- $197 one-time optimization (50% = ~$99 deposit via Payment Link)
-- $97/month ongoing management (Stripe Subscription)
+- $197 one-time optimization (full upfront, or $98 deposit / $97 on delivery split)
+- $98/month ongoing management (Stripe Subscription)
 """
 
 import os
@@ -143,7 +143,7 @@ def create_subscription_link(
 ) -> dict:
     """
     Create a recurring monthly subscription payment link.
-    Use for the $97/month ongoing GBP management retainer.
+    Use for the $98/month ongoing GBP management retainer.
     """
     if not is_configured():
         return {"error": "Stripe not configured", "url": None}

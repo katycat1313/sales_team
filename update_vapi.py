@@ -1,8 +1,12 @@
-import httpx, asyncio, json
+import httpx, asyncio, json, os
+from pathlib import Path
+from dotenv import load_dotenv
 
-VAPI_KEY = "e1d6e9f2-432b-4663-9671-d0fc8c1cb278"
-ASSISTANT_ID = "7e7f245c-0671-4fc2-ba95-d6341caf4519"
-WEBHOOK = "https://lovely-grapes-tie.loca.lt"
+load_dotenv(Path(__file__).resolve().parent / ".env", override=False)
+
+VAPI_KEY = os.getenv("VAPI_API_KEY", "")
+ASSISTANT_ID = os.getenv("VAPI_ASSISTANT_ID", "")
+WEBHOOK = os.getenv("WEBHOOK_URL", "http://localhost:8000")
 
 tools = [
     {

@@ -2,9 +2,10 @@ from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import FileResponse
 from contextlib import asynccontextmanager
-import uvicorn, json, os, asyncio
+import uvicorn, json, os, asyncio, re
 from datetime import datetime, timezone
 from pathlib import Path
+import httpx
 
 from dotenv import load_dotenv
 
@@ -17,9 +18,6 @@ from agents.small_biz_expert import SmallBizExpertAgent
 from agents.sales import SalesAgent, SalesOpsAgent
 from agents.outreach import OutreachAgent
 from agents.engineer import EngineerAgent
-from agents.gbp_scout import GBPScoutAgent
-from agents.gbp_researcher import GBPResearcherAgent
-from agents.gbp_sales import GBPSalesAgent
 from agents.team_leader import TeamLeaderAgent
 from agents.job_seeker import JobSeekerAgent
 from agents.scout import ScoutAgent
@@ -36,6 +34,7 @@ from agents.research_assistant import ResearchAssistantAgent
 from scheduler import scheduler
 from memory.memory import init_db, get_memory_summary
 from task_handler import TaskHandler
+from playbooks import PlaybookRunner
 from constants import ALLOWED_TARGET_NICHES, DEFAULT_TARGET_NICHE, MAX_PROSPECT_SCORE
 
 MEMORY_PATH = Path("/app/memory/katy_brief.md")
@@ -49,13 +48,9 @@ scheduled_events = []
 scheduled_events_lock = asyncio.Lock()
 scheduled_events_runner = None
 
-# Full agent roster — GBP sales crew + general-purpose agents
+# Full agent roster
 AGENT_MAP = {
-    # ── GBP sales pipeline ───────────────────────────────
     "coordinator":          lambda b,l,a: CoordinatorAgent(b,l,a),
-    "gbp_scout":            lambda b,l,a: GBPScoutAgent(b,l,a),
-    "gbp_researcher":       lambda b,l,a: GBPResearcherAgent(b,l,a),
-    "gbp_sales":            lambda b,l,a: GBPSalesAgent(b,l,a),
     "outreach":             lambda b,l,a: OutreachAgent(b,l,a),
     "sales":                lambda b,l,a: SalesAgent(b,l,a),
     "sales_ops":            lambda b,l,a: SalesOpsAgent(b,l,a),
@@ -327,6 +322,86 @@ def _prospect_score(prospect: dict) -> float:
     except (TypeError, ValueError):
         return 999.0
 
+
+INTENT_TERMS = {
+    "24/7", "24 hour", "24-hour", "emergency", "urgent", "same day", "same-day",
+    "after hours", "after-hours", "dispatch", "call now", "immediate service",
+    "service call", "book now", "on call", "rapid response", "fast response",
+    "available now", "weekend service", "missed calls", "missed call", "voicemail",
+}
+
+
+def _intent_score(prospect: dict) -> int:
+    text = _prospect_text_blob(prospect)
+    score = sum(1 for term in INTENT_TERMS if term in text)
+    niche = str(prospect.get("niche", "")).lower()
+    if any(k in niche for k in ["plumb", "hvac", "electric", "locksmith", "towing", "garage", "roof"]):
+        score += 1
+    return score
+
+
+def _is_legacy_profile_opportunity(prospect: dict) -> bool:
+    issues = str(prospect.get("gbp_issues", "") or "").lower()
+    return any(token in issues for token in ["unclaimed", "no gbp", "no listing", "no profile"])
+
+
+def _normalize_intent_niche(term: str) -> str:
+    t = str(term or "").lower()
+    if "locksmith" in t:
+        return "locksmiths"
+    if "plumb" in t:
+        return "plumbers"
+    if "hvac" in t or "heating" in t or "air" in t:
+        return "hvac contractors"
+    if "electric" in t:
+        return "electricians"
+    if "tow" in t:
+        return "towing"
+    if "garage" in t:
+        return "garage door"
+    return DEFAULT_TARGET_NICHE
+
+
+async def _search_intent_directory(term: str, location: str, limit: int = 8) -> list:
+    term_q = str(term).replace(" ", "+")
+    loc_q = str(location).replace(" ", "+")
+    url = f"https://www.yellowpages.com/search?search_terms={term_q}&geo_location_terms={loc_q}"
+    headers = {
+        "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36"
+    }
+    async with httpx.AsyncClient(headers=headers, follow_redirects=True, timeout=20) as client:
+        resp = await client.get(url)
+    if resp.status_code != 200:
+        return []
+    html = resp.text
+    blocks = re.split(r'(?=<div[^>]+class="[^"]*(?:result|organic)[^"]*")', html)
+    out = []
+    seen = set()
+    for block in blocks:
+        if len(out) >= limit:
+            break
+        name_m = re.search(r'class="business-name"[^>]*>([^<]+)</a>', block)
+        if not name_m:
+            continue
+        name = re.sub(r"\s+", " ", name_m.group(1)).strip()
+        if not name or name.lower() in seen:
+            continue
+        phone_m = re.search(r'class="phones phone primary">([^<]+)</div>', block)
+        phone = phone_m.group(1).strip() if phone_m else ""
+        if not phone:
+            continue
+        site_m = re.search(r'class="track-visit-website"[^>]*href="([^"]+)"', block)
+        website = site_m.group(1).strip() if site_m else ""
+        seen.add(name.lower())
+        out.append({
+            "business_name": name,
+            "phone": phone,
+            "website": website,
+            "location": location,
+            "term": term,
+        })
+    return out
+
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     global scheduled_events_runner
@@ -445,6 +520,22 @@ def reject_action(approval_id: int):
 def make_task_handler():
     return TaskHandler(AGENT_MAP, KATY_BRIEF, log_event, request_approval)
 
+
+def make_playbook_runner():
+    def runtime_context():
+        active_events = [
+            _serialize_scheduled_event(item)
+            for item in scheduled_events
+            if item.get("status") in {"scheduled", "running"}
+        ]
+        pending_approvals = sum(1 for item in approval_queue if item.get("status") == "pending")
+        return {
+            "scheduled_events": active_events,
+            "pending_approvals": pending_approvals,
+        }
+
+    return PlaybookRunner(make_task_handler(), log_event, runtime_context)
+
 @app.post("/chat")
 async def chat(body: dict):
     message = body.get("message", "")
@@ -474,6 +565,21 @@ async def run_task(body: dict):
     try:
         result = await _execute_agent_task(agent_name, task)
         return {"result": result}
+    except ValueError as e:
+        return {"error": str(e)}
+
+
+@app.get("/playbooks")
+async def list_playbooks():
+    runner = make_playbook_runner()
+    return runner.list_playbooks()
+
+
+@app.post("/playbooks/{playbook_id}")
+async def run_playbook(playbook_id: str, body: dict | None = None):
+    runner = make_playbook_runner()
+    try:
+        return await runner.run(playbook_id, body)
     except ValueError as e:
         return {"error": str(e)}
 
@@ -553,6 +659,22 @@ def get_status():
             "scheduled_events": len([s for s in scheduled_events if s.get("status") in {"scheduled", "running"}]),
             "brief_loaded": len(KATY_BRIEF) > 0, "memory": mem}
 
+@app.get("/availability")
+def get_availability():
+    """Get Katy's current availability for agent transfers."""
+    from memory.memory import get_availability
+    return get_availability()
+
+@app.post("/availability")
+def set_availability(body: dict):
+    """Set Katy's availability. Body: {"available_now": true/false, "available_until": "ISO string or null"}"""
+    from memory.memory import set_availability
+    available_now = body.get("available_now", False)
+    available_until = body.get("available_until")
+    set_availability(available_now, available_until)
+    log_event("system", "action", f"Availability set: available_now={available_now}")
+    return {"set": True, "available_now": available_now, "available_until": available_until}
+
 @app.get("/agents")
 def list_agents():
     return {"agents": list(AGENT_MAP.keys()), "total": len(AGENT_MAP)}
@@ -606,100 +728,92 @@ def browser_sessions():
     return {"linkedin": (session_dir/"linkedin_session.json").exists(),
             "facebook": (session_dir/"facebook_session.json").exists()}
 
-@app.post("/gbp-pipeline")
-async def gbp_pipeline(body: dict):
-    """
-    Full GBP sales pipeline: Scout → Research → Outreach draft → Await approval.
-    body: {"niche": "plumbers", "location": "Austin TX", "limit": 15}
-    """
-    niche = body.get("niche", DEFAULT_TARGET_NICHE)
-    if not _is_allowed_niche(niche):
-        original_niche = niche
-        niche = DEFAULT_TARGET_NICHE
-        log_event("task_handler", "action", f"Blocked niche '{original_niche}' — using {DEFAULT_TARGET_NICHE}")
-    location = body.get("location", "United States")
-    limit = body.get("limit", 15)
+@app.get("/prospects")
+def get_prospects_list(stage: str = None, priority: str = None, limit: int = 50):
+    from memory.memory import get_prospects
+    safe_limit = max(1, min(int(limit or 50), 500))
+    return get_prospects(stage=stage, priority=priority, limit=safe_limit)
 
-    task = f"Find {niche} in {location} with missing or incomplete Google Business Profiles. Scan up to {limit} businesses."
-    log_event("task_handler", "action", f"GBP pipeline: {niche} in {location}")
 
-    handler = make_task_handler()
+@app.get("/prospects/call-list")
+def get_call_list(count: int = 20, priority: str = None):
+    """Return a deterministic, call-ready list of prospects with phone numbers."""
+    from memory.memory import get_prospects
 
-    scout_result = await handler.run_agent("gbp_scout", task)
-    results = {"gbp_scout": scout_result}
+    safe_count = max(1, min(int(count or 20), 200))
+    all_rows = get_prospects(priority=priority, limit=500)
+    rows = [
+        p for p in all_rows
+        if str(p.get("phone", "")).strip() and not _is_legacy_profile_opportunity(p)
+    ]
 
-    scout_text = str(scout_result or "")
-    if "GBP SCOUT FAILED" in scout_text:
-        return {
-            "results": results,
-            "niche": niche,
-            "location": location,
-            "pipeline_status": "halted_at_scout",
-        }
-
-    chained_context = f"Original task: {task}\n\n[gbp_scout findings]\n{scout_result}"
-    researcher_result = await handler.run_agent("gbp_researcher", chained_context)
-    results["gbp_researcher"] = researcher_result
-
-    researcher_text = str(researcher_result or "")
-    if "GBP RESEARCHER SKIPPED" in researcher_text:
-        return {
-            "results": results,
-            "niche": niche,
-            "location": location,
-            "pipeline_status": "halted_at_research",
-        }
-
-    outreach_context = (
-        f"Original task: {task}\n\n"
-        f"[gbp_scout findings]\n{scout_result}\n\n"
-        f"[gbp_researcher findings]\n{researcher_result}"
-    )
-    results["outreach"] = await handler.run_agent("outreach", outreach_context)
+    priority_order = {"HOT": 0, "WARM": 1, "COLD": 2}
+    rows.sort(key=lambda p: (
+        -_intent_score(p),
+        priority_order.get(str(p.get("priority", "WARM")).upper(), 9),
+    ))
 
     return {
-        "results": results,
-        "niche": niche,
-        "location": location,
-        "pipeline_status": "completed",
+        "count": min(safe_count, len(rows)),
+        "total_with_phone": len(rows),
+        "items": rows[:safe_count],
     }
 
 
-@app.post("/gbp-propose")
-async def gbp_propose(body: dict):
-    """
-    Generate and queue proposals for researched prospects.
-    Requires Katy's approval before sending.
-    """
-    task = body.get("task", "Generate proposals for all researched GBP prospects")
-    log_event("gbp_sales", "action", "Generating proposals")
-    handler = make_task_handler()
-    results = await handler.dispatch(["gbp_sales"], task)
-    return {"results": results}
+@app.post("/prospects/discover-intent")
+async def discover_intent_prospects(body: dict | None = None):
+    """Discover and save callable prospects that likely have answering-service buyer intent."""
+    from memory.memory import save_prospect, get_prospects
 
+    payload = body or {}
+    queries = payload.get("queries") or [
+        {"term": "24 hour locksmith", "location": "Houston TX"},
+        {"term": "emergency plumber", "location": "Dallas TX"},
+        {"term": "24 hour hvac", "location": "Phoenix AZ"},
+        {"term": "emergency electrician", "location": "San Antonio TX"},
+        {"term": "24 hour towing", "location": "Columbus OH"},
+    ]
+    per_query = max(1, min(int(payload.get("per_query", 8)), 20))
 
-@app.post("/gbp-send-approved")
-async def gbp_send_approved(body: dict):
-    """
-    After Katy approves an outreach draft, actually send it.
-    body: {"prospect_name": "...", "location": "...", "email": "...", "subject": "...", "body": "..."}
-    """
-    prospect_name = body.get("prospect_name", "")
-    location = body.get("location", "")
-    email = body.get("email", "")
-    subject = body.get("subject", "Quick question about your Google listing")
-    message_body = body.get("body", "")
+    saved = 0
+    scanned = 0
+    for q in queries:
+        term = str(q.get("term", "")).strip()
+        location = str(q.get("location", "")).strip()
+        if not term or not location:
+            continue
+        matches = await _search_intent_directory(term, location, per_query)
+        for m in matches:
+            scanned += 1
+            niche = _normalize_intent_niche(term)
+            is_new = save_prospect(
+                business_name=m["business_name"],
+                location=location,
+                niche=niche,
+                phone=m["phone"],
+                website=m.get("website", ""),
+                priority="HOT",
+                pipeline_stage="found",
+                gbp_score=3.0,
+                research_notes=(
+                    f"Buyer-intent signal: found under '{term}' in {location}. "
+                    "Likely high inbound call urgency and after-hours demand."
+                ),
+                notes="intent: emergency_or_24h_search",
+            )
+            if is_new:
+                saved += 1
 
-    log_event("outreach", "action", f"Sending approved email to {prospect_name}")
-    outreach = OutreachAgent(KATY_BRIEF, log_event, request_approval)
-    result = await outreach.send_approved_outreach(prospect_name, location, email, subject, message_body)
-    return result
-
-
-@app.get("/prospects")
-def get_prospects_list(stage: str = None, priority: str = None):
-    from memory.memory import get_prospects
-    return get_prospects(stage=stage, priority=priority)
+    current = get_prospects(priority="HOT", limit=500)
+    current = [p for p in current if str(p.get("phone", "")).strip() and not _is_legacy_profile_opportunity(p)]
+    current.sort(key=lambda p: (-_intent_score(p), str(p.get("business_name", ""))))
+    return {
+        "queries": len(queries),
+        "scanned": scanned,
+        "saved": saved,
+        "callable_now": len(current),
+        "items": current[:20],
+    }
 
 @app.patch("/prospects/{prospect_id}")
 def patch_prospect(prospect_id: int, body: dict):
@@ -1008,6 +1122,12 @@ async def vapi_schedule_callback(body: dict):
                 business_name=match["business_name"],
                 location=match.get("location",""),
                 pipeline_stage="callback_scheduled",
+                last_call_outcome="busy" if "busy" in str(reason).lower() else "callback_scheduled",
+                next_action="schedule_callback",
+                callback_due_at=callback_time,
+                callback_reason=reason or "callback_requested",
+                callback_status="scheduled",
+                call_result_summary=notes_text,
                 notes=notes_text,
             )
 
@@ -1019,20 +1139,49 @@ async def vapi_schedule_callback(body: dict):
 
 @app.post("/vapi/save-notes")
 async def vapi_save_notes(body: dict):
-    """Eric calls this at the end of every call to log what happened."""
+    """Eric calls this at the end of every call to log structured outcome data."""
     try:
         params = body.get("message", {}).get("functionCall", {}).get("parameters", body)
         business_name = params.get("business_name", "")
         prospect_phone = params.get("prospect_phone", "")
-        outcome = params.get("outcome", "")
-        temperature = params.get("temperature", "")
+        outcome = params.get("outcome", "")  # no_answer, busy, gatekeeper, qualified, not_interested, won, lost
+        temperature = params.get("temperature", "warm")  # cold, cool, warm, hot
         notes = params.get("notes", "")
         objections = params.get("objections", "")
+        requires_transfer = params.get("requires_transfer", False)
 
-        from memory.memory import get_prospects, update_prospect
+        from memory.memory import get_prospects, update_prospect, get_availability
         prospects = get_prospects()
         clean = prospect_phone.replace("+1","").replace("-","").replace(" ","")
         match = next((p for p in prospects if clean in str(p.get("phone","")).replace("-","").replace(" ","")), None)
+
+        # Determine next action based on outcome + availability
+        katy_avail = get_availability()
+        next_action = "do_not_call"  # default
+        
+        if outcome == "qualified" and requires_transfer:
+            if katy_avail.get("available_now"):
+                next_action = "transfer_now"
+            else:
+                next_action = "schedule_callback"
+        elif outcome in ("busy", "gatekeeper"):
+            next_action = "schedule_callback"
+        elif outcome == "not_interested":
+            next_action = "do_not_call"
+        elif outcome == "won":
+            next_action = "close"
+        elif outcome == "no_answer":
+            next_action = "retry"
+
+        callback_due = params.get("callback_time", None)
+        callback_reason = ""
+        if next_action == "schedule_callback":
+            if outcome == "busy":
+                callback_reason = "busy"
+            elif outcome == "gatekeeper":
+                callback_reason = "decision_maker_unavailable"
+            elif not katy_avail.get("available_now"):
+                callback_reason = "katy_unavailable"
 
         if match:
             notes_text = json.dumps({
@@ -1041,18 +1190,126 @@ async def vapi_save_notes(body: dict):
                 "notes": notes,
                 "objections": objections,
                 "called_at": datetime.now(timezone.utc).isoformat(),
+                "next_action": next_action,
             })
             update_prospect(
                 business_name=match["business_name"],
                 location=match.get("location",""),
+                last_call_at=datetime.now(timezone.utc).isoformat(),
+                last_call_outcome=outcome,
+                call_result_summary=notes,
+                call_temperature=temperature,
+                objections=objections,
+                next_action=next_action,
+                callback_due_at=callback_due,
+                callback_reason=callback_reason,
+                callback_status="scheduled" if next_action == "schedule_callback" else "done",
+                requires_human_transfer=1 if next_action == "transfer_now" else 0,
+                transfer_status="ready" if next_action == "transfer_now" else "not_ready",
+                call_attempts=int(match.get("call_attempts") or 0) + 1,
                 pipeline_stage=outcome,
                 notes=notes_text,
             )
 
-        log_event("vapi", "action", f"Call notes saved: {business_name} — {outcome} ({temperature}) — {notes[:80]}")
-        return {"result": "Notes saved successfully."}
+        action_emoji = {"transfer_now": "🤝", "schedule_callback": "📅", "do_not_call": "🛑", "retry": "🔄", "close": "✅"}.get(next_action, "—")
+        log_event("vapi", "action", f"Call saved: {business_name} — {outcome} ({temperature}) — {action_emoji} Next: {next_action}")
+        return {"result": f"Notes saved. Next action: {next_action}"}
     except Exception as e:
         return {"result": f"Notes saved. ({e})"}
+
+
+@app.post("/vapi/send-payment-link")
+async def vapi_send_payment_link(body: dict):
+    """Eric calls this when a prospect is ready to pay and chooses SMS or email delivery."""
+    try:
+        params = body.get("message", {}).get("functionCall", {}).get("parameters", body)
+        business_name = params.get("business_name", "")
+        prospect_phone = params.get("prospect_phone", "")
+        prospect_email = params.get("prospect_email", "")
+        contact_name = params.get("contact_name", "")
+        delivery_method = str(params.get("delivery_method", "sms")).strip().lower()
+        amount = float(params.get("amount", 1000))
+
+        from tools.stripe_tool import create_payment_link
+        from tools.gmail_tool import send_email
+        from tools.sms_tool import send_sms
+
+        link = create_payment_link(
+            amount_dollars=amount,
+            description=f"AI Sales Agent Setup Deposit - {business_name or 'New Client'}",
+            customer_email=prospect_email or None,
+            metadata={
+                "business_name": business_name,
+                "prospect_phone": prospect_phone,
+                "delivery_method": delivery_method,
+                "contact_name": contact_name,
+                "source": "vapi_eric",
+            },
+        )
+
+        payment_url = link.get("url")
+        if not payment_url:
+            err = link.get("error", "Could not create payment link")
+            log_event("vapi", "thought", f"Payment link failed: {err}")
+            return {"result": f"I could not generate the payment link right now. Please try again shortly. ({err})"}
+
+        message = (
+            f"Hi{(' ' + contact_name) if contact_name else ''}, here is your secure payment link for the 50% setup deposit "
+            f"(${amount:,.0f}) to start your AI sales agent build: {payment_url}"
+        )
+
+        sent_ok = False
+        delivery_note = ""
+
+        if delivery_method == "email":
+            if not prospect_email:
+                return {"result": "I can send it by email, but I still need the best email address."}
+            email_res = send_email(
+                to=prospect_email,
+                subject="Your AI Sales Agent Setup Deposit Link",
+                body=message,
+                from_name="Katy Team",
+            )
+            sent_ok = bool(email_res.get("sent"))
+            delivery_note = "email"
+        else:
+            if not prospect_phone:
+                return {"result": "I can send it by SMS, but I still need the best mobile number."}
+            sms_res = send_sms(to_number=prospect_phone, body=message)
+            sent_ok = bool(sms_res.get("sent"))
+            delivery_note = "sms"
+
+        from memory.memory import get_prospects, update_prospect
+        prospects = get_prospects()
+        clean = prospect_phone.replace("+1", "").replace("-", "").replace(" ", "")
+        match = next((p for p in prospects if clean and clean in str(p.get("phone", "")).replace("-", "").replace(" ", "")), None)
+        if match:
+            update_prospect(
+                business_name=match["business_name"],
+                location=match.get("location", ""),
+                stripe_deposit_link=payment_url,
+                deposit_amount=amount,
+                next_action="await_deposit",
+                call_result_summary=f"Payment link sent via {delivery_note}",
+                notes=json.dumps({
+                    "payment_link": payment_url,
+                    "delivery_method": delivery_note,
+                    "prospect_email": prospect_email,
+                    "prospect_phone": prospect_phone,
+                    "business_name": business_name,
+                    "amount": amount,
+                }),
+            )
+
+        if sent_ok:
+            log_event("vapi", "action", f"Payment link sent via {delivery_note}: {business_name or prospect_phone}")
+            return {"result": f"Done. I just sent the secure payment link by {delivery_note}."}
+
+        log_event("vapi", "thought", f"Payment link created but delivery failed ({delivery_note}): {business_name or prospect_phone}")
+        return {"result": "I generated the payment link but delivery failed. I can retry now if you want."}
+    except Exception as e:
+        log_event("vapi", "thought", f"send-payment-link error: {e}")
+        return {"result": "I hit a technical issue sending the payment link. Please try again in a moment."}
 
 
 @app.get("/vapi/active")

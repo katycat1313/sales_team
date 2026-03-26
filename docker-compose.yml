@@ -10,6 +10,7 @@ services:
       - ./orchestrator/memory:/app/memory
       - ./orchestrator/sessions:/app/sessions
       - ./dashboard:/app/dashboard
+      - ${USERPROFILE}/AppData/Roaming/gcloud:/root/.config/gcloud:ro
     env_file:
       - .env
     restart: unless-stopped

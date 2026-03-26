@@ -1,5 +1,4 @@
 from .base import BaseAgent
-from memory.memory import save_contact, contact_exists, mark_contacted
 
 class NetworkingAgent(BaseAgent):
     def __init__(self, katy_brief: str, log_event, request_approval):
@@ -51,7 +50,7 @@ LinkedIn engagement strategy:
 ALWAYS require approval before sending any connection request or message.
 Track everyone approached in memory to avoid duplicate outreach.
 """
-        result = await self.call_claude(system, task)
+        result = await self.call_llm(system, task)
         self.log_task_result(task, result[:200])
         if "send" in task.lower() or "connect" in task.lower():
             self.needs_approval("send_connection_request", {"preview": result[:300]})

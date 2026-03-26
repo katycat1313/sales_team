@@ -10,8 +10,11 @@ Outputs: List of prospects with GBP scores saved to database
 """
 
 import json
+import re
+import random
 from .base import BaseAgent
 from memory.memory import save_prospect, get_prospects
+from constants import TARGET_CITIES, ALLOWED_TARGET_NICHES, DEFAULT_TARGET_NICHE
 
 
 class GBPScoutAgent(BaseAgent):
@@ -24,26 +27,10 @@ class GBPScoutAgent(BaseAgent):
             request_approval=request_approval,
         )
 
-    # Best niches for GBP sales — high ticket, owner-operated, search-driven
-    PRIME_NICHES = [
-        "plumbers", "HVAC contractors", "electricians",
-        "auto repair shops", "roofers", "general contractors",
-        "dentists", "chiropractors", "hair salons", "barber shops"
-    ]
-
-    # High-population cities across the US for maximum reach
-    TARGET_CITIES = [
-        "Houston TX", "Phoenix AZ", "San Antonio TX", "Dallas TX",
-        "Jacksonville FL", "Austin TX", "Columbus OH", "Charlotte NC",
-        "Indianapolis IN", "Fort Worth TX", "Memphis TN", "Louisville KY",
-        "Baltimore MD", "Milwaukee WI", "Albuquerque NM", "Tucson AZ",
-        "Fresno CA", "Sacramento CA", "Mesa AZ", "Kansas City MO"
-    ]
-
     async def run(self, task: str) -> str:
         self.think(f"GBP Scout scanning: {task}")
 
-        import re
+        allowed_niches = {n.lower() for n in ALLOWED_TARGET_NICHES}
 
         # Check if this is an autonomous sweep or a specific request
         is_auto_sweep = any(word in task.lower() for word in [
@@ -53,9 +40,8 @@ class GBPScoutAgent(BaseAgent):
 
         if is_auto_sweep:
             # Pick the best niche + city combo automatically
-            import random
-            niche = random.choice(self.PRIME_NICHES[:5])   # Top 5 niches
-            location = random.choice(self.TARGET_CITIES[:10])  # Top 10 cities
+            niche = random.choice(ALLOWED_TARGET_NICHES)
+            location = random.choice(TARGET_CITIES[:10])  # Top 10 cities
             limit = 20
             self.act(f"Auto-selecting best target: {niche} in {location}")
         else:
@@ -66,7 +52,7 @@ Return ONLY valid JSON: {"niche": "...", "location": "...", "limit": 15}
 If no location given, pick the best US city for that niche.
 If no niche given, pick plumbers — highest GBP conversion rate.
 """
-            parsed_json = await self.call_claude(parse_system, task)
+            parsed_json = await self.call_llm(parse_system, task)
 
             try:
                 match = re.search(r'\{[^}]+\}', parsed_json, re.DOTALL)
@@ -74,9 +60,17 @@ If no niche given, pick plumbers — highest GBP conversion rate.
             except Exception:
                 params = {}
 
-            niche    = params.get("niche", "plumbers")
+            niche    = params.get("niche", DEFAULT_TARGET_NICHE)
             location = params.get("location", "Houston TX")
             limit    = min(int(params.get("limit", 15)), 25)
+
+        # Hard gate: only run approved niches.
+        if (niche or "").strip().lower() not in allowed_niches:
+            original_niche = niche
+            niche = DEFAULT_TARGET_NICHE
+            self.act(
+                f"Requested niche '{original_niche}' is outside allowed targets; using {DEFAULT_TARGET_NICHE}"
+            )
 
         self.act(f"Scanning Google Maps: {niche} in {location} (up to {limit} businesses)")
 
@@ -91,15 +85,11 @@ If no niche given, pick plumbers — highest GBP conversion rate.
         if not prospects or (len(prospects) == 1 and "error" in prospects[0]):
             error_msg = prospects[0].get("error", "scan failed") if prospects else "no results"
             self.think(f"Browser scan unavailable: {error_msg}")
-            # Fall back: ask Gemini to identify likely prospect types in that niche
-            fallback_system = f"""
-The automated GBP scan is unavailable right now.
-Based on your knowledge, list 10 specific types of {niche} businesses in {location}
-that are most likely to have incomplete Google Business Profiles.
-For each, explain the GBP gaps they typically have.
-Format as JSON array: [{{"business_type": "...", "typical_issues": ["...", "..."], "priority": "HOT/WARM"}}]
-"""
-            return await self.call_claude(fallback_system, task)
+            return (
+                "GBP SCOUT FAILED — no real prospects were collected. "
+                f"Reason: {error_msg}. "
+                "Pipeline halted to avoid hypothetical data."
+            )
 
         # Save prospects to database
         saved_count = 0
@@ -153,3 +143,4 @@ Format as JSON array: [{{"business_type": "...", "typical_issues": ["...", "..."
         self.log_task_result(task, result[:300])
         self.act(f"Scout complete: {len(prospects)} prospects found, {saved_count} new")
         return result
+

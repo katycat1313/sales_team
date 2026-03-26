@@ -1,5 +1,5 @@
 from .base import BaseAgent
-from memory.memory import save_job, get_jobs, job_exists
+from memory.memory import get_jobs
 
 class ScoutAgent(BaseAgent):
     def __init__(self, katy_brief: str, log_event, request_approval):
@@ -43,7 +43,7 @@ TITLE | COMPANY | SALARY | LOCATION | WHY IT FITS | WHERE TO APPLY
 End with a 1-line summary of what you found.
 NEVER apply to anything - draft only, all applications need Katy's approval.
 """
-        result = await self.call_claude(system, task)
+        result = await self.call_llm(system, task)
 
         # Save findings to memory
         self.remember("last_search", task)

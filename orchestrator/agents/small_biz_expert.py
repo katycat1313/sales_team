@@ -49,7 +49,8 @@ TOP 3 PAIN POINTS:
 BEST HOOK FOR OUTREACH: [one sentence that would make them want to reply]
 URGENCY SIGNAL: [why they need this NOW]
 """
-        result = await self.call_claude(system, task)
+        result = await self.call_llm(system, task)
         self.log_task_result(task, result[:200])
         add_note(self.name, f"Diagnosed: {task[:80]}", "diagnoses")
         return result
+

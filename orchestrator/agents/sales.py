@@ -39,7 +39,7 @@ Sales principles Katy should use:
 
 APPROVAL REQUIRED before any proposal is sent to a prospect.
 """
-        result = await self.call_claude(system, task)
+        result = await self.call_llm(system, task)
         self.log_task_result(task, result[:200])
         if "proposal" in task.lower() or "send" in task.lower():
             self.needs_approval("send_sales_proposal", {"preview": result[:300]})
@@ -92,6 +92,7 @@ NEEDS ATTENTION:
 THIS WEEK'S PRIORITY:
   [the 1-3 most important things to focus on]
 """
-        result = await self.call_claude(system, task)
+        result = await self.call_llm(system, task)
         self.log_task_result(task, result[:200])
         return result
+

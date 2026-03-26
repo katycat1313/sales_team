@@ -54,7 +54,8 @@ Never use generic phrases like "passionate about technology" or "team player."
 Everything must be specific and earned.
 ⚠️ Present the tailored resume to Katy for review before submitting.
 """
-        result = await self.call_claude(system, task)
+        result = await self.call_llm(system, task)
         self.log_task_result(task, result[:200])
         self.needs_approval("submit_tailored_resume", {"role": task, "preview": result[:300]})
         return result
+

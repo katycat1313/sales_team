@@ -234,7 +234,7 @@ body{display:grid;grid-template-columns:56px 1fr}
       <span style="font-size:20px">👑</span>
       <div><div class="ac-name">Team Leader</div><div class="ac-role">Oversees all 15 agents, briefs you daily</div></div>
       <div></div>
-      <div class="ac-st"><div class="orb orb-on" style="background:var(--violet);box-shadow:0 0 5px var(--violet)"></div><span class="c-violet" id="st-team_leader">routing</span></div>
+      <div class="ac-st"><div class="orb orb-off"></div><span class="c-ink3" id="st-team_leader">idle</span></div>
     </div>
   </div>
 
@@ -262,34 +262,19 @@ body{display:grid;grid-template-columns:56px 1fr}
     <div class="ac"><span class="ac-ico">📊</span><div class="ac-name">Sales Ops</div><div class="ac-role">Pipeline tracking and follow-ups</div><div class="ac-st"><div class="orb orb-off"></div><span class="c-ink3" id="st-sales_ops">idle</span></div></div>
   </div>
 
-  <!-- GBP TEAM -->
-  <div class="sl mb8">gbp sales team</div>
-  <div class="agents-grid mb16" style="grid-template-columns:1fr 1fr 1fr">
-    <div class="ac"><span class="ac-ico">🔍</span><div class="ac-name">GBP Scout</div><div class="ac-role">Scans Google Maps for broken profiles</div><div class="ac-st"><div class="orb orb-off"></div><span class="c-ink3" id="st-gbp_scout">idle</span></div></div>
-    <div class="ac"><span class="ac-ico">🕵️</span><div class="ac-name">GBP Researcher</div><div class="ac-role">Finds owner email & builds pitch dossier</div><div class="ac-st"><div class="orb orb-off"></div><span class="c-ink3" id="st-gbp_researcher">idle</span></div></div>
-    <div class="ac"><span class="ac-ico">💰</span><div class="ac-name">GBP Sales</div><div class="ac-role">Generates proposals & Stripe links</div><div class="ac-st"><div class="orb orb-off"></div><span class="c-ink3" id="st-gbp_sales">idle</span></div></div>
-  </div>
-  <div style="margin-bottom:20px">
-    <div class="sl mb8">run gbp pipeline</div>
-    <div style="display:flex;gap:8px;flex-wrap:wrap">
-      <button class="send-btn" style="padding:10px 14px;font-size:11px;border-radius:8px" onclick="runGBP('plumbers','Charleston WV')">🔧 Plumbers · Charleston WV</button>
-      <button class="send-btn" style="padding:10px 14px;font-size:11px;border-radius:8px" onclick="runGBP('restaurants','Charleston WV')">🍽️ Restaurants · Charleston WV</button>
-      <button class="send-btn" style="padding:10px 14px;font-size:11px;border-radius:8px" onclick="runGBP('hair salons','Charleston WV')">💇 Hair Salons · Charleston WV</button>
-      <button class="send-btn" style="padding:10px 14px;font-size:11px;border-radius:8px" onclick="runGBP('auto repair','Charleston WV')">🚗 Auto Repair · Charleston WV</button>
-    </div>
-  </div>
+  <div style="margin-bottom:20px"></div>
 
   <!-- SOLUTIONS TEAM -->
   <div class="sl mb8">solutions team</div>
   <div class="agents-grid mb16" style="grid-template-columns:1fr 1fr">
     <div class="ac"><span class="ac-ico">🏗️</span><div class="ac-name">Solutions Architect</div><div class="ac-role">Plans and designs the full solution</div><div class="ac-st"><div class="orb orb-off"></div><span class="c-ink3" id="st-solutions_architect">idle</span></div></div>
-    <div class="ac"><span class="ac-ico">✉️</span><div class="ac-name">Outreach</div><div class="ac-role">Drafts personalized emails and DMs</div><div class="ac-st"><div class="orb orb-warn"></div><span class="c-gold" id="st-outreach">approval needed</span></div></div>
+    <div class="ac"><span class="ac-ico">✉️</span><div class="ac-name">Outreach</div><div class="ac-role">Drafts personalized emails and DMs</div><div class="ac-st"><div class="orb orb-off"></div><span class="c-ink3" id="st-outreach">idle</span></div></div>
   </div>
 
   <!-- CAREER TEAM -->
   <div class="sl mb8">career team</div>
   <div class="agents-grid mb28" style="grid-template-columns:1fr 1fr 1fr 1fr 1fr">
-    <div class="ac live" style="border-top-color:var(--sky)"><span class="ac-ico">🔍</span><div class="ac-name">Scout</div><div class="ac-role">Searches job boards daily</div><div class="ac-st"><div class="orb orb-on" style="background:var(--sky);box-shadow:0 0 5px var(--sky)"></div><span class="c-sky" id="st-scout">searching</span></div></div>
+    <div class="ac"><span class="ac-ico">🔍</span><div class="ac-name">Scout</div><div class="ac-role">Searches job boards daily</div><div class="ac-st"><div class="orb orb-off"></div><span class="c-ink3" id="st-scout">idle</span></div></div>
     <div class="ac"><span class="ac-ico">💼</span><div class="ac-name">Job Seeker</div><div class="ac-role">Leads job search strategy</div><div class="ac-st"><div class="orb orb-off"></div><span class="c-ink3" id="st-job_seeker">idle</span></div></div>
     <div class="ac"><span class="ac-ico">📄</span><div class="ac-name">Resume Builder</div><div class="ac-role">Tailors resume per role</div><div class="ac-st"><div class="orb orb-off"></div><span class="c-ink3" id="st-resume_builder">idle</span></div></div>
     <div class="ac"><span class="ac-ico">🔗</span><div class="ac-name">Networking</div><div class="ac-role">LinkedIn connections and relationships</div><div class="ac-st"><div class="orb orb-off"></div><span class="c-ink3" id="st-networking">idle</span></div></div>
@@ -352,8 +337,6 @@ body{display:grid;grid-template-columns:56px 1fr}
       <select id="sched-agent" class="sinput" style="width:100%">
         <option value="team_leader">team_leader</option>
         <option value="coordinator">coordinator</option>
-        <option value="gbp_scout">gbp_scout</option>
-        <option value="gbp_researcher">gbp_researcher</option>
         <option value="outreach">outreach</option>
         <option value="lead_gen">lead_gen</option>
         <option value="small_biz_expert">small_biz_expert</option>
@@ -395,6 +378,15 @@ body{display:grid;grid-template-columns:56px 1fr}
       📊 Google Sheet
     </a>
     <button onclick="loadProspects()" style="background:var(--g3);color:var(--ink);padding:9px 16px;border-radius:8px;border:1px solid var(--rim2);font-size:13px;cursor:pointer">↺ Refresh</button>
+    <input id="call-list-count" type="number" min="1" max="100" value="20" style="width:84px;background:var(--g3);color:var(--ink);padding:9px 12px;border-radius:8px;border:1px solid var(--rim2);font-size:13px">
+    <select id="call-list-priority" style="background:var(--g3);color:var(--ink);padding:9px 12px;border-radius:8px;border:1px solid var(--rim2);font-size:13px;cursor:pointer">
+      <option value="">Any priority</option>
+      <option value="HOT">HOT only</option>
+      <option value="WARM">WARM only</option>
+      <option value="COLD">COLD only</option>
+    </select>
+    <button onclick="buildCallList(this)" style="background:var(--gold3);color:var(--gold);padding:9px 16px;border-radius:8px;border:1px solid rgba(212,168,67,.3);font-size:13px;cursor:pointer">☎ Build Call List</button>
+    <button onclick="enrichAndBuildCallList(this)" style="background:var(--sky2);color:var(--sky);padding:9px 16px;border-radius:8px;border:1px solid rgba(90,174,240,.3);font-size:13px;cursor:pointer">⚡ Enrich + Build</button>
     <button onclick="fillPhones()" style="background:var(--teal2);color:var(--teal);padding:9px 16px;border-radius:8px;border:1px solid rgba(62,207,178,.3);font-size:13px;cursor:pointer">📞 Find Missing Phones</button>
     <select id="filter-priority" onchange="loadProspects()" style="background:var(--g3);color:var(--ink);padding:9px 12px;border-radius:8px;border:1px solid var(--rim2);font-size:13px;cursor:pointer">
       <option value="HAS_PHONE" selected>📞 Has Phone (all)</option>
@@ -402,6 +394,15 @@ body{display:grid;grid-template-columns:56px 1fr}
       <option value="HOT">🔥 HOT only</option>
       <option value="WARM">🌤 WARM only</option>
       <option value="COLD">❄ COLD only</option>
+    </select>
+    <select id="filter-call-status" onchange="refreshProspectView()" style="background:var(--g3);color:var(--ink);padding:9px 12px;border-radius:8px;border:1px solid var(--rim2);font-size:13px;cursor:pointer">
+      <option value="">All call states</option>
+      <option value="uncalled">Uncalled</option>
+      <option value="qualified">Qualified</option>
+      <option value="schedule_callback">Needs Callback</option>
+      <option value="transfer_now">Ready To Transfer</option>
+      <option value="not_interested">Not Interested</option>
+      <option value="retry">Retry</option>
     </select>
     <span id="prospect-count" style="color:var(--ink3);font-size:12px"></span>
   </div>
@@ -464,34 +465,23 @@ body{display:grid;grid-template-columns:56px 1fr}
 <div class="pg" id="pg-intel"><div class="pg-inner">
   <div class="eyebrow">agent research</div><div class="headline">Intel</div><div class="sub">Everything your agents have found and saved.</div>
   <div class="sl mb16">top job matches</div>
-  <div class="g2 mb24">
-    <div class="intel"><div class="intel-badge" style="background:var(--teal2);color:var(--teal)">strong match</div><div class="intel-title">AI Implementation Specialist · Synthesia</div><div class="intel-meta">remote · $65k · found 2h ago</div></div>
-    <div class="intel"><div class="intel-badge" style="background:var(--violet2);color:var(--violet)">good match</div><div class="intel-title">AI App Developer · Descript</div><div class="intel-meta">remote · $70k · found 3h ago</div></div>
-    <div class="intel"><div class="intel-badge" style="background:var(--violet2);color:var(--violet)">good match</div><div class="intel-title">Solutions Engineer · ElevenLabs</div><div class="intel-meta">remote · $60k · found 5h ago</div></div>
-    <div class="intel"><div class="intel-badge" style="background:var(--ember2);color:var(--ember)">stretch</div><div class="intel-title">AI Product Manager · Runway</div><div class="intel-meta">remote · $90k · found 6h ago</div></div>
-  </div>
+  <div class="g2 mb24" id="intel-jobs"><div style="color:var(--ink3);font-size:13px">Loading...</div></div>
   <div class="sl mb16">clients identified</div>
-  <div class="g2 mb24">
-    <div class="intel"><div class="intel-badge" style="background:var(--gold3);color:var(--gold)">prospect</div><div class="intel-title">Charleston HVAC Co — manual intake, losing leads</div><div class="intel-meta">small biz expert · solution designed</div></div>
-    <div class="intel"><div class="intel-badge" style="background:var(--gold3);color:var(--gold)">prospect</div><div class="intel-title">WV Plumbing Services — no follow-up system</div><div class="intel-meta">small biz expert · outreach draft ready</div></div>
-  </div>
+  <div class="g2 mb24" id="intel-clients"><div style="color:var(--ink3);font-size:13px">Loading...</div></div>
   <div class="sl mb16">recruiters found</div>
-  <div class="g2">
-    <div class="intel"><div class="intel-badge" style="background:var(--sky2);color:var(--sky)">recruiter</div><div class="intel-title">Sarah Chen — Head of Talent @ Hugging Face</div><div class="intel-meta">linkedin · draft ready</div></div>
-    <div class="intel"><div class="intel-badge" style="background:var(--sky2);color:var(--sky)">recruiter</div><div class="intel-title">Marcus Webb — Engineering Recruiter @ Replicate</div><div class="intel-meta">linkedin · not contacted</div></div>
-  </div>
+  <div class="g2" id="intel-recruiters"><div style="color:var(--ink3);font-size:13px">Loading...</div></div>
 </div></div>
 
 <!-- PLAYBOOK -->
 <div class="pg" id="pg-playbook"><div class="pg-inner">
   <div class="eyebrow">one-click launches</div><div class="headline">Playbook</div><div class="sub">Pre-built missions ready to launch instantly.</div>
   <div class="g2">
-    <div class="pb"><div class="pb-ico">🎯</div><div class="pb-name">Full Job Hunt</div><div class="pb-desc">Scout + Job Seeker search all boards, Resume Builder tailors applications, Networking connects with recruiters.</div><div class="pb-tags"><span class="pb-tag">scout</span><span class="pb-tag">job_seeker</span><span class="pb-tag">resume_builder</span><span class="pb-tag">networking</span></div></div>
-    <div class="pb"><div class="pb-ico">🏪</div><div class="pb-name">Client Pipeline</div><div class="pb-desc">Small Biz Expert diagnoses prospects, Solutions Architect plans the fix, Sales drafts the pitch, Outreach contacts them.</div><div class="pb-tags"><span class="pb-tag">small_biz_expert</span><span class="pb-tag">solutions_architect</span><span class="pb-tag">sales</span><span class="pb-tag">outreach</span></div></div>
-    <div class="pb"><div class="pb-ico">🎤</div><div class="pb-name">Interview Ready</div><div class="pb-desc">Coach runs a full interactive interview prep session using your real projects and experience.</div><div class="pb-tags"><span class="pb-tag">coach</span></div></div>
-    <div class="pb"><div class="pb-ico">⚙️</div><div class="pb-name">Automation Audit</div><div class="pb-desc">Automations Specialist reviews a business and designs the full workflow solution with pricing.</div><div class="pb-tags"><span class="pb-tag">automations</span><span class="pb-tag">solutions_architect</span></div></div>
-    <div class="pb"><div class="pb-ico">📊</div><div class="pb-name">Weekly Debrief</div><div class="pb-desc">Team Leader summarizes everything all 15 agents found, built, and accomplished this week.</div><div class="pb-tags"><span class="pb-tag">team_leader</span></div></div>
-    <div class="pb"><div class="pb-ico">🏹</div><div class="pb-name">Target a Company</div><div class="pb-desc">Research digs deep, Small Biz Expert diagnoses them, Sales crafts the perfect approach.</div><div class="pb-tags"><span class="pb-tag">research</span><span class="pb-tag">small_biz_expert</span><span class="pb-tag">sales</span></div></div>
+    <div class="pb" data-play="job-hunt" onclick="launchPlay('job-hunt')"><div class="pb-ico">🎯</div><div class="pb-name">Full Job Hunt</div><div class="pb-desc">Scout searches all job boards, Job Seeker picks the best matches, Resume Builder tailors applications, Networking drafts recruiter outreach.</div><div class="pb-tags"><span class="pb-tag">scout</span><span class="pb-tag">job_seeker</span><span class="pb-tag">resume_builder</span><span class="pb-tag">networking</span></div></div>
+    <div class="pb" data-play="client-pipeline" onclick="launchPlay('client-pipeline')"><div class="pb-ico">🏪</div><div class="pb-name">Client Pipeline</div><div class="pb-desc">Pulls real HOT/WARM prospects from the database. Small Biz Expert diagnoses sales-response gaps, Solutions Architect prices the fix, Sales + Outreach drafts approval-ready messages.</div><div class="pb-tags"><span class="pb-tag">small_biz_expert</span><span class="pb-tag">solutions_architect</span><span class="pb-tag">sales</span><span class="pb-tag">outreach</span></div></div>
+    <div class="pb" data-play="interview-ready" onclick="launchPlay('interview-ready')"><div class="pb-ico">🎤</div><div class="pb-name">Interview Ready</div><div class="pb-desc">Coach runs a full interactive session using your real stack, projects, and target roles. Covers technical, behavioral, and situational questions with live feedback.</div><div class="pb-tags"><span class="pb-tag">coach</span></div></div>
+    <div class="pb" data-play="automation-audit" onclick="launchPlay('automation-audit')"><div class="pb-ico">⚙️</div><div class="pb-name">Automation Audit</div><div class="pb-desc">Pulls top prospects from the database. Automations Specialist identifies workflow pain points, Solutions Architect designs the full solution stack with tools and monthly pricing.</div><div class="pb-tags"><span class="pb-tag">automations</span><span class="pb-tag">solutions_architect</span></div></div>
+    <div class="pb" data-play="weekly-debrief" onclick="launchPlay('weekly-debrief')"><div class="pb-ico">📊</div><div class="pb-name">Weekly Debrief</div><div class="pb-desc">Team Leader reviews all agent activity — prospects found, calls made, emails approved, events scheduled — and delivers a 2-minute executive summary.</div><div class="pb-tags"><span class="pb-tag">team_leader</span></div></div>
+    <div class="pb" data-play="target-company" onclick="launchPlay('target-company')"><div class="pb-ico">🏹</div><div class="pb-name">Target a Company</div><div class="pb-desc">Enter any company name. Research digs deep on their online presence, Small Biz Expert diagnoses weaknesses, Sales crafts and queues a personalized pitch for approval.</div><div class="pb-tags"><span class="pb-tag">research</span><span class="pb-tag">small_biz_expert</span><span class="pb-tag">sales</span></div></div>
   </div>
 </div></div>
 
@@ -535,6 +525,10 @@ body{display:grid;grid-template-columns:56px 1fr}
 <!-- SETTINGS -->
 <div class="pg" id="pg-settings"><div class="pg-inner">
   <div class="eyebrow">configuration</div><div class="headline">Settings</div><div class="sub">Control how your agent team operates.</div>
+  <div class="card mb8"><div style="font-family:'IBM Plex Mono',monospace;font-size:9px;letter-spacing:.14em;text-transform:uppercase;color:var(--ink3);margin-bottom:14px">Your Availability</div>
+    <div class="srow"><div class="sinfo"><div class="slabel">Available for Transfer Now</div><div class="sdesc">Agents will transfer qualified leads directly when you're on</div></div><div class="tog" id="katy-avail-tog" onclick="toggleAvailability(this)"></div></div>
+    <div id="avail-status" style="font-size:11px;color:var(--ink3);margin-top:8px;font-family:'IBM Plex Mono',monospace">Loading...</div>
+  </div>
   <div class="card mb8"><div style="font-family:'IBM Plex Mono',monospace;font-size:9px;letter-spacing:.14em;text-transform:uppercase;color:var(--ink3);margin-bottom:14px">API Keys</div>
     <div class="srow"><div class="sinfo"><div class="slabel">Anthropic API Key</div><div class="sdesc">Powers all Claude agents</div></div><input class="sinput" type="password" value="sk-ant-***"></div>
     <div class="srow"><div class="sinfo"><div class="slabel">Telegram Bot Token</div><div class="sdesc">Mobile command interface</div></div><input class="sinput" type="password" value="8360739636:***"></div>
@@ -551,6 +545,9 @@ body{display:grid;grid-template-columns:56px 1fr}
 </div></div>
 
 </div>
+
+<div id="toast-container" style="position:fixed;bottom:24px;right:24px;display:flex;flex-direction:column;gap:8px;z-index:9999;pointer-events:none"></div>
+
 <script>
 const API=window.location.origin;
 const SHEETS_URL='https://docs.google.com/spreadsheets/d/12PoYqddT3FzQAlvL871cR4kUfk3X37M_qO10oT2V65c/edit';
@@ -559,6 +556,23 @@ document.querySelectorAll('#sheets-link,#sheets-link2').forEach(a=>a.href=SHEETS
 
 let lastId=0,allEvents=[],connected=false;
 const h=new Date().getHours();
+
+function toast(msg,type='info'){
+  const el=document.createElement('div');
+  const bg={success:'rgba(68,232,136,.12)',error:'rgba(240,96,122,.12)',info:'rgba(90,174,240,.12)',warn:'rgba(212,168,67,.12)'}[type]||'rgba(90,174,240,.12)';
+  const col={success:'var(--green)',error:'var(--rose)',info:'var(--sky)',warn:'var(--gold)'}[type]||'var(--sky)';
+  el.style.cssText=`background:${bg};border:1px solid ${col};color:${col};padding:12px 16px;border-radius:10px;font-size:12px;font-family:'DM Sans',sans-serif;font-weight:500;max-width:320px;pointer-events:auto;animation:toastIn .2s ease;line-height:1.4`;
+  el.textContent=msg;
+  const c=document.getElementById('toast-container');
+  if(c){c.appendChild(el);setTimeout(()=>el.remove(),5000);}
+}
+
+if(!document.getElementById('toast-style')){
+  const s=document.createElement('style');
+  s.id='toast-style';
+  s.textContent='@keyframes toastIn{from{transform:translateX(20px);opacity:0}to{transform:translateX(0);opacity:1}}';
+  document.head.appendChild(s);
+}
 document.getElementById('greet').textContent=(h<12?'good morning':h<17?'good afternoon':'good evening')+', katy';
 
 // ── PROSPECTS ──────────────────────────────────────────────────────────────
@@ -566,8 +580,44 @@ let allProspects=[];
 let autocallQueue=[];
 let autocallRunning=false;
 let autocallIndex=0;
+let currentProspectMode='browse';
+let currentCallListOptions={count:20,priority:''};
+
+function applyCallStatusFilter(data){
+  const filter=document.getElementById('filter-call-status')?.value||'';
+  if(!filter)return data;
+  if(filter==='uncalled')return data.filter(p=>!p.last_call_outcome&&!p.next_action);
+  if(filter==='qualified')return data.filter(p=>p.last_call_outcome==='qualified');
+  if(filter==='not_interested')return data.filter(p=>p.last_call_outcome==='not_interested');
+  return data.filter(p=>p.next_action===filter||p.last_call_outcome===filter);
+}
+
+async function refreshProspectView(){
+  if(currentProspectMode==='call-list'){
+    await buildCallList(null);
+    return;
+  }
+  await loadProspects();
+}
+
+function renderProspects(data,countLabel=''){
+  const list=document.getElementById('prospect-list');
+  if(!list)return;
+  const withPhone=data.filter(p=>p.phone);
+  document.getElementById('prospect-count').textContent=countLabel||`${data.length} total · ${withPhone.length} ready to call`;
+  document.getElementById('s-prospects').textContent=allProspects.length||'0';
+  document.getElementById('s-hot').textContent=allProspects.filter(p=>p.priority==='HOT').length||'0';
+  const pip=document.getElementById('pip-prospects');
+  if(pip)pip.style.display=allProspects.length?'block':'none';
+  const wrap=document.getElementById('start-autocall-wrap');
+  if(wrap)wrap.style.display=withPhone.length?'block':'none';
+  if(!data.length){list.innerHTML='<div style="color:var(--ink3);font-size:13px;padding:20px 0">No prospects found for that call list.</div>';return;}
+  list.innerHTML='';
+  data.forEach(p=>list.appendChild(buildProspectCard(p)));
+}
 
 async function loadProspects(){
+  currentProspectMode='browse';
   const filter=document.getElementById('filter-priority')?.value||'';
   const list=document.getElementById('prospect-list');
   if(!list)return;
@@ -587,44 +637,134 @@ async function loadProspects(){
       const po={HOT:0,WARM:1,COLD:2};
       return (po[a.priority]||1)-(po[b.priority]||1);
     });
-    const withPhone=data.filter(p=>p.phone);
-    document.getElementById('prospect-count').textContent=`${data.length} total · ${withPhone.length} ready to call`;
-    document.getElementById('s-prospects').textContent=allProspects.length||'0';
-    document.getElementById('s-hot').textContent=allProspects.filter(p=>p.priority==='HOT').length||'0';
-    const pip=document.getElementById('pip-prospects');
-    if(pip)pip.style.display=allProspects.length?'block':'none';
-    // Show start button if we have callables
-    const wrap=document.getElementById('start-autocall-wrap');
-    if(wrap)wrap.style.display=withPhone.length?'block':'none';
-    if(!data.length){list.innerHTML='<div style="color:var(--ink3);font-size:13px;padding:20px 0">No prospects yet — click Scan for Prospects on the home page.</div>';return;}
-    list.innerHTML='';
-    data.forEach(p=>list.appendChild(buildProspectCard(p)));
+    data=applyCallStatusFilter(data);
+    renderProspects(data, `${data.length} total · ${data.filter(p=>p.phone).length} ready to call`);
   }catch(e){list.innerHTML='<div style="color:var(--rose);font-size:13px">Could not load prospects — is the server running?</div>';}
 }
 
+async function buildCallList(btn){
+  const countInput=document.getElementById('call-list-count');
+  const priorityInput=document.getElementById('call-list-priority');
+  const count=Math.max(1,Math.min(parseInt(countInput?.value||'20',10)||20,100));
+  const priority=(priorityInput?.value||'').trim();
+  currentProspectMode='call-list';
+  currentCallListOptions={count,priority};
+  const list=document.getElementById('prospect-list');
+  if(!list)return;
+  if(btn){btn.disabled=true;btn.textContent='Building...';}
+  list.innerHTML='<div style="color:var(--ink3);font-size:13px">Building deterministic call list...</div>';
+  try{
+    const params=new URLSearchParams({count:String(count)});
+    if(priority)params.set('priority',priority);
+    const r=await fetch(`${API}/prospects/call-list?${params.toString()}`);
+    const d=await r.json();
+    let items=Array.isArray(d.items)?d.items:[];
+    items=applyCallStatusFilter(items);
+    allProspects=items;
+    renderProspects(items, `${d.count||items.length} selected · ${d.total_with_phone||items.length} with phones in memory`);
+    toast(`Built ${priority||'all'} call list with ${d.count||items.length} prospects`,'success');
+  }catch(e){
+    list.innerHTML='<div style="color:var(--rose);font-size:13px">Could not build call list.</div>';
+    toast('Could not build call list','error');
+  }
+  if(btn){btn.disabled=false;btn.textContent='☎ Build Call List';}
+}
+
+async function enrichAndBuildCallList(btn){
+  const list=document.getElementById('prospect-list');
+  if(!list)return;
+  if(btn){btn.disabled=true;btn.textContent='Enriching...';}
+  list.innerHTML='<div style="color:var(--ink3);font-size:13px">Finding missing phone numbers, then building call list...</div>';
+  try{
+    const r=await fetch(`${API}/prospects/fill-phones`,{method:'POST'});
+    const d=await r.json();
+    toast(`Phone enrichment finished: found ${d.filled||0} numbers`,'info');
+    if(btn){btn.textContent='Building...';}
+    await buildCallList(null);
+  }catch(e){
+    list.innerHTML='<div style="color:var(--rose);font-size:13px">Could not enrich prospects.</div>';
+    toast('Could not enrich prospects before building list','error');
+  }
+  if(btn){btn.disabled=false;btn.textContent='⚡ Enrich + Build';}
+}
+
 function buildProspectCard(p){
-  const issues=tryParseJSON(p.gbp_issues)||[];
-  const issueText=issues.slice(0,2).join(' · ')||'needs optimization';
+  const intentText=((p.notes||'')+' '+(p.research_notes||'')).trim();
+  const issueText=intentText?intentText.slice(0,140):'service-fit signal review pending';
   const pc=p.priority==='HOT'?'#f09044':p.priority==='WARM'?'#d4a843':'#50507a';
   const pe=p.priority==='HOT'?'🔥':p.priority==='WARM'?'🌤':'❄';
   const phone=p.phone||'';
   const cleanPhone=phone.replace(/\D/g,'');
   const card=document.createElement('div');
   card.id='card-'+p.id;
+  
+  // Call outcome badge
+  const callOutcome = p.last_call_outcome;
+  const nextAction = p.next_action;
+  let callBadge = '';
+  if (callOutcome) {
+    const outcomeColor = {
+      'qualified': '#3ecfb2',
+      'not_interested': '#f0607a',
+      'busy': '#d4a843',
+      'gatekeeper': '#d4a843',
+      'no_answer': '#9090b8',
+      'won': '#44e888',
+      'lost': '#f0607a'
+    }[callOutcome] || '#9090b8';
+    const outcomeEmoji = {
+      'qualified': '✓',
+      'not_interested': '✗',
+      'busy': '⏱',
+      'gatekeeper': '👤',
+      'no_answer': '☎️',
+      'won': '🎉',
+      'lost': '❌'
+    }[callOutcome] || '—';
+    callBadge = `<span style="font-size:10px;font-weight:600;background:${outcomeColor}22;color:${outcomeColor};padding:2px 8px;border-radius:4px">${outcomeEmoji} ${callOutcome}</span>`;
+  }
+  
+  // Next action indicator
+  let actionBadge = '';
+  if (nextAction) {
+    const actionColor = {
+      'transfer_now': '#5aaef0',
+      'schedule_callback': '#d4a843',
+      'do_not_call': '#50507a',
+      'retry': '#9090b8',
+      'close': '#44e888'
+    }[nextAction] || '#9090b8';
+    const actionEmoji = {
+      'transfer_now': '🤝',
+      'schedule_callback': '📅',
+      'do_not_call': '⏸',
+      'retry': '🔄',
+      'close': '✅'
+    }[nextAction] || '—';
+    actionBadge = `<span style="font-size:10px;font-weight:600;background:${actionColor}22;color:${actionColor};padding:2px 8px;border-radius:4px">${actionEmoji} ${nextAction}</span>`;
+  }
+  
+  const callSummary = p.call_result_summary ? `<div style="font-size:11px;color:var(--ink2);margin-bottom:8px">💬 "${p.call_result_summary}"</div>` : '';
+  const callbackStatus = p.callback_due_at ? `<div style="font-size:11px;color:var(--gold);margin-bottom:8px">📅 Callback: ${new Date(p.callback_due_at).toLocaleDateString()}</div>` : '';
+  
   card.style.cssText='background:var(--g1);border:1px solid var(--rim);border-radius:12px;padding:16px 18px;display:grid;grid-template-columns:1fr auto;gap:12px;align-items:start;transition:opacity .3s';
   card.innerHTML=`
     <div>
-      <div style="display:flex;align-items:center;gap:8px;margin-bottom:5px">
+      <div style="display:flex;align-items:center;gap:8px;margin-bottom:8px;flex-wrap:wrap">
         <span style="font-size:10px;font-weight:600;background:${pc}22;color:${pc};padding:2px 8px;border-radius:4px">${pe} ${p.priority||'WARM'}</span>
-        <span style="font-family:'IBM Plex Mono',monospace;font-size:9px;color:var(--ink3);text-transform:uppercase">${p.niche||''} · ${p.location||''}</span>
+        ${callBadge}
+        ${actionBadge}
       </div>
+      <div style="font-family:'IBM Plex Mono',monospace;font-size:9px;color:var(--ink3);text-transform:uppercase;margin-bottom:5px">${p.niche||''} · ${p.location||''}</div>
       <div style="font-size:15px;font-weight:500;color:var(--ink);margin-bottom:3px">${p.business_name}</div>
       <div style="font-size:13px;color:var(--teal);margin-bottom:5px">${phone||'<span style="color:var(--ink3)">no phone</span>'}</div>
-      <div style="font-size:11px;color:var(--ink3);line-height:1.5">${issueText}</div>
+      <div style="font-size:11px;color:var(--ink3);line-height:1.5;margin-bottom:8px">${issueText}</div>
+      ${callSummary}
+      ${callbackStatus}
     </div>
     <div style="display:flex;flex-direction:column;gap:6px;min-width:80px">
       ${cleanPhone?`<button onclick="callProspect('${cleanPhone}','${escHtml(p.business_name)}','${p.location||''}','${p.niche||''}',this)" style="background:var(--ember);color:white;border:none;padding:8px 12px;border-radius:8px;font-size:12px;font-weight:600;cursor:pointer">📞 Call</button>`:''}
-      ${p.maps_url?`<a href="${p.maps_url}" target="_blank" style="background:var(--g3);color:var(--ink2);border:1px solid var(--rim2);padding:6px 10px;border-radius:8px;font-size:11px;text-align:center;text-decoration:none">GBP ↗</a>`:''}
+      ${p.maps_url?`<a href="${p.maps_url}" target="_blank" style="background:var(--g3);color:var(--ink2);border:1px solid var(--rim2);padding:6px 10px;border-radius:8px;font-size:11px;text-align:center;text-decoration:none">Maps ↗</a>`:''}
       <button onclick="deleteProspect(${p.id},this)" style="background:var(--rose2);color:var(--rose);border:1px solid transparent;padding:6px 10px;border-radius:8px;font-size:11px;cursor:pointer">✕ Remove</button>
     </div>`;
   return card;
@@ -751,13 +891,18 @@ async function callProspect(phone,name,city,niche,btn){
   try{
     const r=await fetch(`${API}/vapi/call`,{
       method:'POST',headers:{'Content-Type':'application/json'},
-      body:JSON.stringify({prospect_phone:'+1'+phone,business_name:name,city,business_type:niche,gbp_condition:'INCOMPLETE_PROFILE'})
+      body:JSON.stringify({prospect_phone:'+1'+phone,business_name:name,city,business_type:niche,service_need:'missed_call_answering'})
     });
     const d=await r.json();
     if(btn){
       btn.textContent=d.id?'✓ Called':'✗ Error';
       btn.style.background=d.id?'#44e888':'#f0607a';
       setTimeout(()=>{if(btn){btn.disabled=false;btn.textContent='📞 Call';btn.style.background='var(--ember)';}},5000);
+    }
+    if(d.id){
+      toast(`Call started for ${name}`,'success');
+      setTimeout(()=>{refreshProspectView();},10000);
+      setTimeout(()=>{refreshProspectView();},25000);
     }
     return !!d.id;
   }catch(e){if(btn){btn.textContent='✗ Error';btn.disabled=false;}return false;}
@@ -834,6 +979,129 @@ async function fillPhones(){
   }catch(e){btn.disabled=false;btn.textContent='📞 Find Missing Phones';}
 }
 
+// ── PLAYBOOK ─────────────────────────────────────────────────────────────────
+
+async function launchPlay(id){
+  if(id==='target-company'){
+    const company=prompt('Enter the company name or website to target:');
+    if(!company||!company.trim())return;
+    await _firePlay('target-company',{company:company.trim()},company.trim());
+    return;
+  }
+  await _firePlay(id);
+}
+
+async function _firePlay(id,payload={},label){
+  const card=document.querySelector(`[data-play="${id}"]`);
+  if(card){card.style.borderColor='var(--gold)';card.style.boxShadow='0 0 18px rgba(212,168,67,.25)';}
+  try{
+    const r=await fetch(`${API}/playbooks/${id}`,{
+      method:'POST',
+      headers:{'Content-Type':'application/json'},
+      body:JSON.stringify(payload)
+    });
+    const data=await r.json().catch(()=>({}));
+    const summary=(data&&data.summary?String(data.summary):'');
+    const failedBySummary=/vertex ai error|gemini api error|resource exhausted|failed|no real prospects were collected/i.test(summary);
+    const failedBySteps=Array.isArray(data?.steps)&&data.steps.some(s=>/vertex ai error|gemini api error|resource exhausted|failed|no real prospects were collected/i.test(String(s?.result||'')));
+    if(r.ok&&!data.error&&!failedBySummary&&!failedBySteps){
+      const name=label||_playName(id);
+      toast(`▷ ${name} launched — watch the feed`,  'success');
+      nav('home',document.querySelector('.ri[onclick*="home"]'));
+    }else{
+      const msg=data.error||summary||'Launch failed — check API quota or orchestrator logs';
+      toast(msg.slice(0,160),'error');
+      if(card)card.style.borderColor='';
+    }
+  }catch(e){
+    toast('Cannot reach orchestrator','error');
+    if(card)card.style.borderColor='';
+  }
+  if(card)setTimeout(()=>{card.style.borderColor='';card.style.boxShadow='';},4000);
+}
+
+function _playName(id){
+  return{'job-hunt':'Full Job Hunt','client-pipeline':'Client Pipeline','interview-ready':'Interview Ready','automation-audit':'Automation Audit','weekly-debrief':'Weekly Debrief','target-company':'Target a Company'}[id]||id;
+}
+
+async function loadIntel(){
+  const jobs=document.getElementById('intel-jobs');
+  const clients=document.getElementById('intel-clients');
+  const recruiters=document.getElementById('intel-recruiters');
+  try{
+    const [jobsRes,contactsRes,prospectsRes]=await Promise.allSettled([
+      fetch(`${API}/memory/jobs`).then(r=>r.ok?r.json():[]),
+      fetch(`${API}/memory/contacts`).then(r=>r.ok?r.json():[]),
+      fetch(`${API}/prospects`).then(r=>r.ok?r.json():[])
+    ]);
+    const jobData=jobsRes.status==='fulfilled'?jobsRes.value:[];
+    const contactData=contactsRes.status==='fulfilled'?contactsRes.value:[];
+    const prospectData=prospectsRes.status==='fulfilled'?prospectsRes.value:[];
+    if(jobs){
+      if(jobData.length){
+        jobs.innerHTML=jobData.slice(0,6).map(j=>{
+          const badge=j.match_level==='strong'?`background:var(--teal2);color:var(--teal)`:j.match_level==='good'?`background:var(--violet2);color:var(--violet)`:`background:var(--ember2);color:var(--ember)`;
+          return `<div class="intel"><div class="intel-badge" style="${badge}">${j.match_level||'match'}</div><div class="intel-title">${escText(j.title||'')}${j.company?' · '+escText(j.company):''}</div><div class="intel-meta">${[j.location,j.salary,j.found_at?'found '+j.found_at:''].filter(Boolean).join(' · ')}</div></div>`;
+        }).join('');
+      }else{
+        jobs.innerHTML='<div class="empty">No job matches yet — run the Full Job Hunt playbook</div>';
+      }
+    }
+    if(clients){
+      const hot=prospectData.filter(p=>p.priority==='HOT'||p.priority==='WARM').slice(0,6);
+      if(hot.length){
+        clients.innerHTML=hot.map(p=>`<div class="intel"><div class="intel-badge" style="background:var(--gold3);color:var(--gold)">${p.priority||'prospect'}</div><div class="intel-title">${escText(p.business_name)}</div><div class="intel-meta">${escText(p.location||'')}${p.niche?' · '+escText(p.niche):''}</div></div>`).join('');
+      }else{
+        clients.innerHTML='<div class="empty">No clients yet — run a prospect scan or Client Pipeline play</div>';
+      }
+    }
+    if(recruiters){
+      const recs=contactData.filter(c=>c.type==='recruiter'||c.role?.toLowerCase().includes('recruit')||c.role?.toLowerCase().includes('talent')).slice(0,6);
+      if(recs.length){
+        recruiters.innerHTML=recs.map(c=>`<div class="intel"><div class="intel-badge" style="background:var(--sky2);color:var(--sky)">recruiter</div><div class="intel-title">${escText(c.name||'')}${c.role?' — '+escText(c.role):''}</div><div class="intel-meta">${escText(c.company||'')}${c.platform?' · '+escText(c.platform):''}</div></div>`).join('');
+      }else{
+        recruiters.innerHTML='<div class="empty">No recruiters found yet — run the Full Job Hunt playbook</div>';
+      }
+    }
+  }catch(e){
+    if(jobs)jobs.innerHTML='<div class="empty">Could not load intel — is the orchestrator running?</div>';
+  }
+}
+
+async function loginP(platform){
+  const btn=document.getElementById(platform==='linkedin'?'li-btn':'fb-btn');
+  const st=document.getElementById(platform==='linkedin'?'li-st':'fb-st');
+  if(btn){btn.disabled=true;btn.textContent='opening browser...';}
+  try{
+    const r=await fetch(`${API}/browser/login/${platform}`,{method:'POST'});
+    const d=await r.json();
+    if(r.ok){
+      toast(`${platform} browser opened — log in and the session will save automatically`,'info');
+      // Poll for session confirmation
+      let tries=0;
+      const check=setInterval(async()=>{
+        tries++;
+        const s=await fetch(`${API}/browser/sessions`).then(x=>x.json()).catch(()=>({}));
+        if(s[platform]){
+          clearInterval(check);
+          if(st){st.textContent='connected';st.className='sess-status c-teal';}
+          if(btn){btn.disabled=false;btn.textContent='connected ✓';btn.className='sess-btn ok';}
+          toast(`${platform} session saved!`,'success');
+        } else if(tries>20){
+          clearInterval(check);
+          if(btn){btn.disabled=false;btn.textContent='connect →';}
+        }
+      },3000);
+    } else {
+      toast(`Could not open ${platform} browser`,'error');
+      if(btn){btn.disabled=false;btn.textContent='connect →';}
+    }
+  }catch(e){
+    toast('Cannot reach orchestrator','error');
+    if(btn){btn.disabled=false;btn.textContent='connect →';}
+  }
+}
+
 async function triggerScan(){
   const btn=event.target.closest('button');
   const lbl=document.getElementById('scan-lbl');
@@ -843,12 +1111,26 @@ async function triggerScan(){
   const cities=['Houston TX','Dallas TX','Phoenix AZ','San Antonio TX','Columbus OH'];
   const niche=niches[Math.floor(Math.random()*niches.length)];
   const city=cities[Math.floor(Math.random()*cities.length)];
-  await fetch(`${API}/task`,{method:'POST',headers:{'Content-Type':'application/json'},
-    body:JSON.stringify({task:`Scan for GBP prospects: ${niche} in ${city}. Find real businesses. Save HOT and WARM to database.`,agent:'gbp_scout'})
-  });
-  setTimeout(()=>{btn.disabled=false;lbl.textContent='Scan for Prospects';ico.textContent='🔍';loadProspects();},3000);
+  try{
+    const r=await fetch(`${API}/task`,{method:'POST',headers:{'Content-Type':'application/json'},
+      body:JSON.stringify({task:`Scan for service-business prospects: ${niche} in ${city}. Find real businesses likely to need faster lead response. Save HOT and WARM to database.`,agent:'lead_gen'})
+    });
+    if(r.ok){
+      lbl.textContent='Agents Working...';ico.textContent='⚙️';
+      toast(`Prospect scan started: ${niche} in ${city} — watch the feed`,'success');
+      setTimeout(()=>{btn.disabled=false;lbl.textContent='Scan for Prospects';ico.textContent='🔍';loadProspects();},8000);
+    }else{
+      lbl.textContent='Scan for Prospects';ico.textContent='🔍';
+      toast('Scan failed — is the orchestrator running?','error');
+      btn.disabled=false;
+    }
+  }catch(e){
+    lbl.textContent='Scan for Prospects';ico.textContent='🔍';
+    toast('Cannot reach orchestrator','error');
+    btn.disabled=false;
+  }
 }
-function nav(p,el){document.querySelectorAll('.pg').forEach(x=>x.classList.remove('on'));document.querySelectorAll('.ri').forEach(x=>x.classList.remove('on'));document.getElementById('pg-'+p).classList.add('on');if(el)el.classList.add('on');if(p==='prospects')loadProspects();}
+function nav(p,el){document.querySelectorAll('.pg').forEach(x=>x.classList.remove('on'));document.querySelectorAll('.ri').forEach(x=>x.classList.remove('on'));document.getElementById('pg-'+p).classList.add('on');if(el)el.classList.add('on');if(p==='prospects')loadProspects();if(p==='outbox')pollAppr();if(p==='intel')loadIntel();if(p==='missions')loadScheduledEvents();if(p==='browser')checkSess();}
 const aC={team_leader:'var(--violet)',coordinator:'var(--violet)',scout:'var(--sky)',outreach:'var(--teal)',engineer:'var(--ember)',coach:'var(--green)',katy:'var(--gold)',system:'var(--ink4)',research:'#4488ff',research_assistant:'#4488ff',small_biz_expert:'var(--teal)',biz_dev:'var(--teal)',automations:'var(--teal)',solutions_architect:'var(--teal)',lead_gen:'var(--ember)',marketing:'var(--ember)',sales:'var(--ember)',sales_ops:'var(--ember)',job_seeker:'var(--sky)',resume_builder:'var(--sky)',networking:'var(--sky)',interview_coach:'var(--green)'};
 const tS={thought:{bg:'var(--g3)',c:'var(--ink4)'},action:{bg:'var(--sky2)',c:'var(--sky)'},message:{bg:'var(--violet2)',c:'var(--violet)'},approval_needed:{bg:'var(--gold3)',c:'var(--gold)'},result:{bg:'var(--green2)',c:'var(--green)'}};
 function addRow(ev){
@@ -880,7 +1162,7 @@ async function doAppr(id,btn){btn.disabled=true;await fetch(`${API}/approvals/${
 async function doRej(id,btn){btn.disabled=true;await fetch(`${API}/approvals/${id}/reject`,{method:'POST'});btn.closest('.appr').style.opacity='.4';setTimeout(()=>pollAppr(),600);}
 async function sendMsg(){const inp=document.getElementById('chat-in');const who=document.getElementById('chat-who').value;const msg=inp.value.trim();if(!msg)return;const btn=document.getElementById('send-b');btn.disabled=true;btn.textContent='...';inp.value='';addRow({id:Date.now(),timestamp:new Date().toISOString(),agent:'katy',type:'message',content:`→ ${who}: ${msg}`});try{await fetch(`${API}/chat`,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({message:msg,agent:who})});}catch(e){addRow({id:Date.now(),timestamp:new Date().toISOString(),agent:'system',type:'result',content:'⚠️ Cannot reach orchestrator'});}btn.disabled=false;btn.textContent='Send →';}
 function quick(w,m){document.getElementById('chat-who').value=w;document.getElementById('chat-in').value=m;sendMsg();}
-async function runGBP(niche,location){const btn=event.target;btn.disabled=true;btn.textContent='scanning...';addRow({id:Date.now(),timestamp:new Date().toISOString(),agent:'gbp_scout',type:'action',content:`Starting GBP scan: ${niche} in ${location}`});try{const r=await fetch(`${API}/gbp-pipeline`,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({niche,location,limit:15})});const d=await r.json();addRow({id:Date.now(),timestamp:new Date().toISOString(),agent:'gbp_scout',type:'result',content:`Scan complete. Check Outbox for email drafts ready to approve.`});nav('outbox',document.querySelector('.ri[onclick*="outbox"]'));setTimeout(pollAppr,1000);}catch(e){addRow({id:Date.now(),timestamp:new Date().toISOString(),agent:'system',type:'result',content:'⚠️ Pipeline error — is orchestrator running?'});}btn.disabled=false;btn.textContent=btn.textContent.replace('scanning...','done ✓');}
+async function runGBP(niche,location){const btn=event.target;btn.disabled=true;btn.textContent='running...';addRow({id:Date.now(),timestamp:new Date().toISOString(),agent:'lead_gen',type:'action',content:`Starting prospect mission: ${niche} in ${location}`});try{const r=await fetch(`${API}/task`,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({agent:'lead_gen',task:`Find and save 15 ${niche} prospects in ${location} for Missed-Call-Revenue outreach.`})});await r.json();addRow({id:Date.now(),timestamp:new Date().toISOString(),agent:'lead_gen',type:'result',content:`Prospect mission complete. Check Prospects and Outbox.`});nav('prospects',document.querySelector('.ri[onclick*="prospects"]'));}catch(e){addRow({id:Date.now(),timestamp:new Date().toISOString(),agent:'system',type:'result',content:'⚠️ Mission error — is orchestrator running?'});}btn.disabled=false;btn.textContent='run done ✓';}
 async function checkSess(){try{const r=await fetch(`${API}/browser/sessions`);const d=await r.json();if(d.linkedin){document.getElementById('li-st').textContent='connected';document.getElementById('li-st').className='sess-status c-teal';document.getElementById('li-btn').className='sess-btn ok';document.getElementById('li-btn').textContent='connected ✓';}if(d.facebook){document.getElementById('fb-st').textContent='connected';document.getElementById('fb-st').className='sess-status c-teal';document.getElementById('fb-btn').className='sess-btn ok';document.getElementById('fb-btn').textContent='connected ✓';}}catch(e){}}
 
 // ── LIVE CALL MONITOR ─────────────────────────────────────────────────────────
@@ -970,7 +1252,54 @@ setInterval(()=>{
   if(document.getElementById('pg-prospects')?.classList.contains('on'))pollActiveCalls();
 },5000);
 
+setInterval(()=>{
+  if(document.getElementById('pg-prospects')?.classList.contains('on')&&!autocallRunning){
+    refreshProspectView();
+  }
+},20000);
+
 checkSess();focusScheduleForm();loadScheduledEvents();setInterval(poll,2500);setInterval(pollSt,8000);setInterval(pollAppr,6000);setInterval(loadScheduledEvents,10000);
+
+// Load and sync availability state
+async function loadAvailability(){
+  try{
+    const r=await fetch(`${API}/availability`);
+    const d=await r.json();
+    const tog=document.getElementById('katy-avail-tog');
+    const status=document.getElementById('avail-status');
+    if(tog){
+      if(d.available_now)tog.classList.add('on');else tog.classList.remove('on');
+    }
+    if(status){
+      status.textContent=d.available_now?'🟢 Available for transfers':'🔴 Busy — callbacks will be scheduled';
+      if(d.available_until)status.textContent+=' until '+new Date(d.available_until).toLocaleTimeString();
+    }
+  }catch(e){}
+}
+
+async function toggleAvailability(el){
+  const isNowOn=el.classList.contains('on');
+  const newState=!isNowOn;
+  try{
+    await fetch(`${API}/availability`,{
+      method:'POST',
+      headers:{'Content-Type':'application/json'},
+      body:JSON.stringify({available_now:newState,available_until:null})
+    });
+    if(newState){
+      el.classList.add('on');
+      toast('✓ You\'re available — Eric will transfer qualified leads','success');
+    }else{
+      el.classList.remove('on');
+      toast('✓ You\'re busy — Eric will schedule callbacks instead','info');
+    }
+    loadAvailability();
+  }catch(e){
+    toast('Could not update availability','error');
+  }
+}
+
+loadAvailability();setInterval(loadAvailability,30000);
 </script>
 </body>
 </html>

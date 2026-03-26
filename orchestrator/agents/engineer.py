@@ -54,6 +54,7 @@ Always end your response with one of:
 - "🔍 Paste the error message and I'll dig deeper"
 - "⚡ Want me to write the full implementation?"
 """
-        result = await self.call_claude(system, task)
+        result = await self.call_llm(system, task)
         self.act(f"Engineer completed: {task[:50]}")
         return result
+

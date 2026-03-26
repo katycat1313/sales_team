@@ -61,7 +61,8 @@ RISKS:
 SUCCESS CRITERIA:
   [How Katy and the client know it's working]
 """
-        result = await self.call_claude(system, task)
+        result = await self.call_llm(system, task)
         self.log_task_result(task, result[:200])
         self.note(f"Solution designed: {task[:80]}", "solutions")
         return result
+

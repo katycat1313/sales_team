@@ -1,5 +1,4 @@
 from .base import BaseAgent
-from memory.memory import save_contact, contact_exists
 
 class LeadGenAgent(BaseAgent):
     def __init__(self, katy_brief: str, log_event, request_approval):
@@ -40,7 +39,7 @@ Only surface leads that genuinely match. Quality over quantity.
 Flag any lead that has already been contacted - check before recommending.
 NEVER contact anyone directly - hand off to Outreach agent with your findings.
 """
-        result = await self.call_claude(system, task)
+        result = await self.call_llm(system, task)
         self.note(f"Lead gen task: {task[:80]}", "lead_history")
         self.log_task_result(task, result[:200])
         self.act(f"Lead gen complete - handing to outreach")

@@ -49,7 +49,7 @@ YOUR RULES:
 5. Be direct and short - she is busy
 6. If she says ok, yes, go ahead - she is approving whatever you just proposed, execute it
 """
-        response = await self.call_claude(system, message)
+        response = await self.call_llm(system, message)
         self.conversation_history.append(f"Team Leader: {response}")
         self.log_task_result(message, response[:200])
         return response

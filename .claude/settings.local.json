@@ -51,7 +51,15 @@
       "Bash(curl -s -X POST http://localhost:8000/vapi/call -H \"Content-Type: application/json\" -d \"{\"\"phone_number\"\": \"\"3044108850\"\", \"\"business_name\"\": \"\"Chief Solutions\"\", \"\"owner_name\"\": \"\"the owner\"\", \"\"city\"\": \"\"Houston TX\"\", \"\"business_type\"\": \"\"plumbing\"\", \"\"website\"\": \"\"chiefsolutionsinc.com\"\", \"\"gbp_issues\"\": \"\"no reviews, no photos, no Google posts\"\", \"\"specific_issues\"\": \"\"Your Google profile has no customer reviews and no photos, which means customers searching for a plumber are choosing your competitors instead.\"\", \"\"rating\"\": \"\"4.2\"\", \"\"review_count\"\": \"\"0\"\"}\")",
       "Bash(curl -s -X POST http://localhost:8000/vapi/call -H \"Content-Type: application/json\" -d \"{\"\"phone_number\"\": \"\"+13044108850\"\", \"\"business_name\"\": \"\"Chief Solutions\"\", \"\"owner_name\"\": \"\"the owner\"\", \"\"city\"\": \"\"Houston TX\"\", \"\"business_type\"\": \"\"plumbing\"\", \"\"website\"\": \"\"chiefsolutionsinc.com\"\", \"\"gbp_issues\"\": \"\"no reviews, no photos, no Google posts\"\", \"\"specific_issues\"\": \"\"Your Google profile has no customer reviews and no photos, which means customers searching for a plumber are choosing your competitors instead.\"\", \"\"rating\"\": \"\"4.2\"\", \"\"review_count\"\": \"\"0\"\"}\")",
       "Bash(curl -s -X POST http://localhost:8000/vapi/call -H \"Content-Type: application/json\" -d \"{\"\"phone_number\"\": \"\"+13044108850\"\", \"\"business_name\"\": \"\"Chief Solutions\"\", \"\"owner_name\"\": \"\"the owner\"\", \"\"city\"\": \"\"Houston TX\"\", \"\"business_type\"\": \"\"plumbing\"\", \"\"website\"\": \"\"chiefsolutionsinc.com\"\", \"\"gbp_issues\"\": \"\"no reviews, no photos, no Google posts\"\", \"\"specific_issues\"\": \"\"Your Google profile has zero reviews and no photos — customers are choosing competitors over you right now.\"\"}\")",
-      "Bash(gh repo:*)"
+      "Bash(gh repo:*)",
+      "WebFetch(domain:docs.vapi.ai)",
+      "Bash(python3 -m json.tool)",
+      "Bash(curl -s http://localhost:8000/vapi/active)",
+      "Bash(python3 -c \"import sys,json; p=json.load\\(sys.stdin\\); print\\(f''''{len\\(p\\)} prospects in DB''''\\)\")",
+      "Bash(python3 -c \"import sys,json; p=json.load\\(sys.stdin\\); [print\\(x.get\\(''''business_name'''',''''?''''\\), ''''|'''', x.get\\(''''phone'''',''''NO PHONE''''\\)\\) for x in p[:5]]\")",
+      "Bash(curl -s -X POST http://localhost:8000/prospects/fill-phones)",
+      "Bash(python3 -c \":*)",
+      "Bash(grep -r \"dashboard\" \"C:\\\\Users\\\\aiass\\\\OneDrive\\\\agent_team\\\\orchestrator\"\" --include=\"*.py\" -l 2>/dev/null; grep -r \"8000\" \"C:UsersaiassOneDriveagent_teamorchestratormain.py \")"
     ]
   }
 }

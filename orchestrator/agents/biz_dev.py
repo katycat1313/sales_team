@@ -38,6 +38,7 @@ KATY'S SELLABLE SERVICES based on her skills:
 Always prioritize opportunities that can generate income quickly.
 Katy needs near-term revenue - flag anything that takes 6+ months to pay off.
 """
-        result = await self.call_claude(system, task)
+        result = await self.call_llm(system, task)
         self.log_task_result(task, result[:200])
         return result
+

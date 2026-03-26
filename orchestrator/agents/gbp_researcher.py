@@ -83,8 +83,44 @@ class GBPResearcherAgent(BaseAgent):
     async def run(self, task: str) -> str:
         self.think(f"GBP Researcher starting: {task[:100]}")
 
+        task_lower = task.lower()
+
+        # Pull business names directly from scout handoff bullets when available.
+        scoped_names = set()
+        for line in task.splitlines():
+            line = line.strip()
+            if line.startswith("• ") and "|" in line:
+                scoped_names.add(line[2:].split("|", 1)[0].strip())
+
+        # Try to parse the original niche/location from chained task context.
+        niche_match = re.search(r"find\s+(.+?)\s+in\s+([A-Za-z .]+,?\s*[A-Z]{2})", task, re.IGNORECASE)
+        scoped_niche = ""
+        scoped_location = ""
+        if niche_match:
+            scoped_niche = niche_match.group(1).strip().lower()
+            scoped_location = niche_match.group(2).strip().lower()
+
+        # If this task includes scout findings, only use scoped prospects.
+        use_scoped_mode = "[gbp_scout findings]" in task_lower or "top prospects for research" in task_lower
+
         # Get unresearched prospects from database (stage = 'found')
-        prospects = get_prospects(stage="found", limit=10)
+        prospects = get_prospects(stage="found", limit=100)
+
+        if use_scoped_mode:
+            filtered = []
+            for p in prospects:
+                name = (p.get("business_name") or "").strip()
+                niche = (p.get("niche") or "").strip().lower()
+                location = (p.get("location") or "").strip().lower()
+
+                if scoped_names and name in scoped_names:
+                    filtered.append(p)
+                    continue
+
+                if scoped_niche and scoped_location and scoped_niche in niche and scoped_location in location:
+                    filtered.append(p)
+
+            prospects = filtered
 
         if not prospects:
             # Also check if task mentions specific businesses
@@ -122,7 +158,7 @@ Build a concise sales intel dossier:
 
 Be specific and actionable. This goes directly to the outreach writer.
 """
-                dossier_text = await self.call_claude(research_system, f"Research {biz_name} in {loc}")
+                dossier_text = await self.call_llm(research_system, f"Research {biz_name} in {loc}")
 
                 # Save research to database
                 update_prospect(
@@ -142,23 +178,13 @@ Be specific and actionable. This goes directly to the outreach writer.
                 })
 
         else:
-            # No DB prospects — use Gemini to research from task context (scout output)
-            research_system = """
-You are a business intelligence researcher for a GBP optimization sales campaign.
-Based on the prospect data provided, create detailed sales dossiers.
-
-For each business mentioned:
-1. What their GBP gaps are costing them
-2. Best pitch angle
-3. Most likely decision maker title
-4. Recommended contact approach
-5. Urgency factor (why fix it NOW)
-
-Format each dossier clearly with the business name as a header.
-End with: "READY FOR OUTREACH: [list of business names with any emails found]"
-"""
-            dossier_text = await self.call_claude(research_system, task)
-            dossiers.append({"business": "multiple", "dossier": dossier_text})
+            msg = (
+                "GBP RESEARCHER SKIPPED — no scoped real prospects from current scout run. "
+                "Pipeline halted to avoid hypothetical dossiers."
+            )
+            self.act("No scoped prospects available; skipping research")
+            self.log_task_result(task, msg)
+            return msg
 
         # Build handoff summary for Outreach Agent
         output_lines = [
@@ -180,3 +206,4 @@ End with: "READY FOR OUTREACH: [list of business names with any emails found]"
         self.log_task_result(task, result[:300])
         self.act(f"Research complete: {len(dossiers)} dossiers built")
         return result
+

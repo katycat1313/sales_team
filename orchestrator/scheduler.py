@@ -23,26 +23,11 @@ import random
 from datetime import datetime
 from pathlib import Path
 
-ORCHESTRATOR_URL  = os.getenv("ORCHESTRATOR_URL", "http://localhost:8000")
+from constants import PRIME_NICHES, TARGET_CITIES
+
+ORCHESTRATOR_URL   = os.getenv("ORCHESTRATOR_URL", "http://localhost:8000")
 TELEGRAM_BOT_TOKEN = os.getenv("TELEGRAM_BOT_TOKEN")
-KATY_TELEGRAM_ID  = os.getenv("KATY_TELEGRAM_ID")
-
-# Best niches for GBP quick-close sales
-PRIME_NICHES = [
-    "plumbers", "HVAC contractors", "electricians",
-    "auto repair shops", "roofers", "general contractors",
-    "dentists", "chiropractors", "hair salons", "barber shops",
-    "landscapers", "pest control", "cleaning services",
-]
-
-# Target cities — mid-size US cities have LOTS of small businesses with bad GBPs
-TARGET_CITIES = [
-    "Houston TX", "Phoenix AZ", "San Antonio TX", "Dallas TX",
-    "Jacksonville FL", "Austin TX", "Columbus OH", "Charlotte NC",
-    "Indianapolis IN", "Fort Worth TX", "Memphis TN", "Louisville KY",
-    "Tucson AZ", "Fresno CA", "Sacramento CA", "Mesa AZ",
-    "Kansas City MO", "Albuquerque NM", "Atlanta GA", "Tampa FL",
-]
+KATY_TELEGRAM_ID   = os.getenv("KATY_TELEGRAM_ID")
 
 
 async def send_telegram(message: str):

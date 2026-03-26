@@ -26,6 +26,7 @@ You gather, compile, organize, and hand off clean data.
 Always output in clean structured lists or tables.
 Label your sources and note anything you are uncertain about.
 """
-        result = await self.call_claude(system, task)
+        result = await self.call_llm(system, task)
         self.log_task_result(task, result[:200])
         return result
+

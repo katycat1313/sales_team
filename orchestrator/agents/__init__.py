@@ -1,17 +1,20 @@
 from .team_leader import TeamLeaderAgent
-from .research import ResearchAgent, ResearchAssistantAgent
+from .coordinator import CoordinatorAgent
+from .research import ResearchAgent
 from .small_biz_expert import SmallBizExpertAgent
-from .biz_dev import BizDevAgent
-from .lead_gen import LeadGenAgent
-from .marketing import MarketingAgent
-from .automations import AutomationsAgent
-from .solutions_architect import SolutionsArchitectAgent
 from .sales import SalesAgent, SalesOpsAgent
-from .interview_coach import InterviewCoachAgent
-from .job_seeker import JobSeekerAgent, AsstJobSeekerAgent
-from .resume_builder import ResumeBuilderAgent
-from .networking import NetworkingAgent
-from .scout import ScoutAgent
 from .outreach import OutreachAgent
 from .engineer import EngineerAgent
-from .coordinator import CoordinatorAgent
+from .gbp_scout import GBPScoutAgent
+from .gbp_researcher import GBPResearcherAgent
+from .gbp_sales import GBPSalesAgent
+from .coach import CoachAgent
+from .job_seeker import JobSeekerAgent
+from .scout import ScoutAgent
+from .networking import NetworkingAgent
+from .lead_gen import LeadGenAgent
+from .marketing import MarketingAgent
+from .biz_dev import BizDevAgent
+from .automations import AutomationsAgent
+from .solutions_architect import SolutionsArchitectAgent
+from .resume_builder import ResumeBuilderAgent

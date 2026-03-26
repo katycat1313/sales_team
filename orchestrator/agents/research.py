@@ -29,24 +29,11 @@ GAPS (what you could not find that someone should follow up on)
 
 Be thorough but not bloated. Every sentence should earn its place.
 """
-        result = await self.call_claude(system, task)
+        result = await self.call_llm(system, task)
         self.note(f"Researched: {task[:80]}", "research_history")
         self.log_task_result(task, result[:200])
         self.act(f"Research complete: {task[:50]}")
         return result
 
 
-class ResearchAssistantAgent(BaseAgent):
-    def __init__(self, katy_brief: str, log_event, request_approval):
-        super().__init__(
-            name="research_assistant",
-            role="the research assistant who supports the research agent with quick lookups and data collection",
-            katy_brief=katy_brief,
-            log_event=log_event,
-            request_approval=request_approval
-        )
-
-    async def run(self, task: str) -> str:
-        self.think(f"Research assistant handling: {task}")
-        return "(stub)"
 

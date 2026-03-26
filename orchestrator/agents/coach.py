@@ -38,6 +38,7 @@ When assessing fit:
 - Be honest about where she's competitive vs where she'd be a stretch
 - Prioritize roles where her AI API experience is rare and valuable
 """
-        result = await self.call_claude(system, task)
+        result = await self.call_llm(system, task)
         self.act(f"Coach completed session: {task[:50]}")
         return result
+

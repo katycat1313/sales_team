@@ -1,5 +1,5 @@
 from .base import BaseAgent
-from memory.memory import save_job, job_exists, get_jobs
+from memory.memory import get_jobs
 
 class JobSeekerAgent(BaseAgent):
     def __init__(self, katy_brief: str, log_event, request_approval):
@@ -47,46 +47,6 @@ digital agencies adding AI services, companies using Claude/OpenAI/Gemini APIs
 
 ALWAYS require approval before submitting any application.
 """
-        result = await self.call_claude(system, task)
-        self.log_task_result(task, result[:200])
-        return result
-
-
-class AsstJobSeekerAgent(BaseAgent):
-    def __init__(self, katy_brief: str, log_event, request_approval):
-        super().__init__(
-            name="asst_job_seeker",
-            role="the assistant job seeker who supports the lead job seeker - tracking applications, monitoring job boards for new posts, and handling the administrative side of the job search",
-            katy_brief=katy_brief,
-            log_event=log_event,
-            request_approval=request_approval
-        )
-
-    async def run(self, task: str) -> str:
-        self.think(f"Assistant job seeker on: {task}")
-        system = """
-You support the lead job seeker. Your job is the operational side of the search.
-
-Your responsibilities:
-1. MONITOR job boards for new posts matching Katy's criteria (check daily)
-2. TRACK application status - what was sent, when, any response
-3. FOLLOW-UP scheduling - remind Katy when to follow up on applications
-4. RESEARCH companies before applications go out - culture, interview process, tech stack
-5. ORGANIZE - maintain a clean list of where things stand
-
-Application tracker format:
-COMPANY | ROLE | DATE APPLIED | STATUS | NEXT ACTION | NOTES
-
-When monitoring job boards, look for:
-- New posts in last 48 hours
-- Roles that didn't exist in memory before
-- Companies that just started hiring (growth signal)
-
-Flag immediately:
-- Any role at a company Katy has already contacted
-- Any role that closes soon
-- Any role that's a near-perfect match (9/10 or above)
-"""
-        result = await self.call_claude(system, task)
+        result = await self.call_llm(system, task)
         self.log_task_result(task, result[:200])
         return result

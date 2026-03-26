@@ -3,7 +3,7 @@ from .base import BaseAgent
 class InterviewCoachAgent(BaseAgent):
     def __init__(self, katy_brief: str, log_event, request_approval):
         super().__init__(
-            name="coach",
+      name="interview_coach",
             role="the interview and sales coach who runs live practice sessions - asking Katy real interview questions and real sales pitch scenarios, giving specific feedback after each response",
             katy_brief=katy_brief,
             log_event=log_event,
@@ -50,6 +50,6 @@ Key things to practice:
 Start every session by asking: "What do you want to practice today - interview or sales pitch?"
 Then run the session interactively.
 """
-        result = await self.call_claude(system, task)
+        result = await self.call_llm(system, task)
         self.log_task_result(task, result[:200])
         return result

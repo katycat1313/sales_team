@@ -135,7 +135,52 @@ def init_db():
             found_at TEXT DEFAULT (datetime('now')),
             updated_at TEXT DEFAULT (datetime('now')),
             notes TEXT,
+            last_call_at TEXT,
+            last_call_outcome TEXT,
+            call_result_summary TEXT,
+            call_temperature TEXT,
+            objections TEXT,
+            next_action TEXT,
+            callback_due_at TEXT,
+            callback_reason TEXT,
+            callback_status TEXT DEFAULT 'pending',
+            requires_human_transfer INTEGER DEFAULT 0,
+            transfer_status TEXT,
+            call_attempts INTEGER DEFAULT 0,
             UNIQUE(business_name, location)
+        );
+
+        CREATE TABLE IF NOT EXISTS katy_availability (
+            id INTEGER PRIMARY KEY CHECK (id = 1),
+            available_now INTEGER DEFAULT 0,
+            available_until TEXT,
+            updated_at TEXT DEFAULT (datetime('now'))
+        );
+
+        CREATE TABLE IF NOT EXISTS eric_calls (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            call_id TEXT UNIQUE,
+            phone_number TEXT NOT NULL,
+            company_name TEXT,
+            contact_name TEXT,
+            contact_email TEXT,
+            call_outcome TEXT,
+            interest_level TEXT,
+            call_duration_seconds INTEGER DEFAULT 0,
+            payment_status TEXT DEFAULT 'pending',
+            payment_amount REAL DEFAULT 1000,
+            stripe_checkout_url TEXT,
+            stripe_session_id TEXT,
+            stripe_payment_intent_id TEXT,
+            payment_method TEXT,
+            transfer_requested_at TEXT,
+            transfer_accepted INTEGER DEFAULT 0,
+            callback_scheduled_at TEXT,
+            callback_time TEXT,
+            notes TEXT,
+            call_started_at TEXT DEFAULT (datetime('now')),
+            call_ended_at TEXT,
+            call_recording_url TEXT
         );
     """)
     conn.commit()
@@ -488,6 +533,30 @@ def cleanup_prospects_by_policy(dry_run: bool = True) -> dict:
         "sample": sample,
     }
 
+
+# ── KATY AVAILABILITY ───────────────────────
+def get_availability() -> dict:
+    """Get current availability state."""
+    conn = get_db()
+    row = conn.execute("SELECT * FROM katy_availability WHERE id=1").fetchone()
+    conn.close()
+    if row:
+        return {
+            "available_now": bool(row["available_now"]),
+            "available_until": row["available_until"],
+            "updated_at": row["updated_at"]
+        }
+    return {"available_now": False, "available_until": None, "updated_at": None}
+
+def set_availability(available_now: bool, available_until: str = None):
+    """Set Katy's availability state."""
+    conn = get_db()
+    conn.execute("""
+        INSERT OR REPLACE INTO katy_availability (id, available_now, available_until, updated_at)
+        VALUES (1, ?, ?, datetime('now'))
+    """, (1 if available_now else 0, available_until))
+    conn.commit()
+    conn.close()
 
 # Initialize on import
 init_db()

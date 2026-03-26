@@ -44,8 +44,9 @@ Voice: direct, warm, real. Never corporate. Never generic.
 Always write like a person, not a press release.
 ⚠️ All public content requires Katy's approval before posting.
 """
-        result = await self.call_claude(system, task)
+        result = await self.call_llm(system, task)
         self.log_task_result(task, result[:200])
         if any(word in task.lower() for word in ["post", "publish", "linkedin", "content"]):
             self.needs_approval("publish_content", {"task": task, "preview": result[:300]})
         return result
+

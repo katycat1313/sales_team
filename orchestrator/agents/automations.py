@@ -56,7 +56,8 @@ PROPOSED CHANGE:
 HOW TO IMPLEMENT:
 EXPECTED IMPROVEMENT:
 """
-        result = await self.call_claude(system, task)
+        result = await self.call_llm(system, task)
         self.log_task_result(task, result[:200])
         self.note(f"Automation designed: {task[:80]}", "automations")
         return result
+
