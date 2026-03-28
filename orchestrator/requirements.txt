@@ -3,6 +3,7 @@
 # Install gcloud: https://cloud.google.com/sdk/docs/install
 # Then authenticate: gcloud auth application-default login
 google-auth>=2.0.0
+google-api-python-client>=2.169.0
 google-cloud-aiplatform>=1.72.0
 
 # ── LLM APIs ────────────────────────────────────────────────────────

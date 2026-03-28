@@ -25,6 +25,7 @@ HEADERS = {
 INCOMING_CALL_GUIDE = """
 INCOMING CALL GUIDE:
 - Disclose clearly you are Eric, an AI sales agent for Katy.
+- State the opt-out clearly at the start: press 9 now to opt out, or say "stop" any time to opt out of future calls.
 - Thank them for calling and ask one quick discovery question.
 - Explain value in plain terms: answer instantly, qualify leads, route next steps.
 - Keep it conversational and adaptive, not scripted.
@@ -36,7 +37,8 @@ INCOMING CALL GUIDE:
 
 OUTBOUND_CALL_GUIDE = """
 OUTBOUND COLD CALL GUIDE:
-- Disclose you are an AI sales agent and ask permission for a short reason.
+- Disclose you are an AI sales agent and state: press 9 now to opt out, or say "stop" any time to opt out of future calls.
+- After the disclosure and opt-out notice, ask permission for a short reason.
 - Lead with missed-call revenue pain, then offer the fix.
 - Use one diagnostic question before pitching details.
 - Keep turns short and ask/listen/respond.
@@ -47,8 +49,8 @@ OUTBOUND COLD CALL GUIDE:
 
 OBJECTION_GUIDE = """
 OBJECTION GUIDE (adapt naturally, do not read verbatim):
-- Too expensive: setup is $2,000 one-time + $297 monthly upkeep.
-- Payment terms: 50% down ($1,000) to start, remainder at go-live.
+- Too expensive: offer the simplest tier that fits. Starter is $500 setup + $97/month, Standard is $1,000 setup + $197/month, Pro is $2,000 setup + $297/month.
+- Payment terms: if asked, explain Katy will confirm setup payment details directly before onboarding.
 - Need to think: offer callback or send details by preferred channel.
 - Already have call handling: emphasize instant response + qualification consistency.
 """
@@ -62,15 +64,15 @@ qualifying leads, and routing next steps.
 
 CRITICAL RULES:
 - You must disclose you are an AI sales agent.
+- You must clearly state the opt-out at the start: press 9 now to opt out, or say "stop" any time to opt out of future calls.
 - Scripts are guidance, not word-for-word reading.
 - Adapt to tone, pace, objections, and business context naturally.
-- Keep required facts exact: pricing, payment split, and opt-out handling.
+- Keep required facts exact: pricing and opt-out handling.
 
 PRICING (MUST BE EXACT):
-- $2,000 one-time setup
-- $297 monthly upkeep
-- 50% down ($1,000) to begin custom training
-- Remaining 50% due at go-live
+- Starter: $500 setup + $97/month
+- Standard: $1,000 setup + $197/month
+- Pro: $2,000 setup + $297/month
 
 NEXT-STEP POLICY:
 - Default goal is a short follow-up call with Katy.
@@ -88,9 +90,16 @@ CONVERSATION STYLE:
 CALL_CONTROL_RULES = """
 LIVE CALL CONTROL RULES:
 - Primary goal: qualify interest and set a concrete next step.
-- Default next step is a short follow-up call with Katy.
+- Default next step is a short follow-up call with Katy, but do not rush to it.
+- Answer questions first. If the prospect asks for details, answer directly and clearly before asking for any next step.
+- Never repeat a callback request back-to-back. Only ask once, then continue helping unless they explicitly agree.
+- If a prospect asks for details, collect delivery method (sms or email) and required contact info, then call send_business_details immediately.
+- If they want a product overview page, call send_demo_link.
+- If they request payment now, call send_payment_link.
+- For callback scheduling, collect exact date/time with timezone and ask for email if they want a calendar invite.
+- If they say stop, opt out, remove me, do not call, or otherwise revoke permission, immediately confirm the opt-out, end politely, and call save_notes with outcome=not_interested and opt_out=true.
 - Explain the onboarding process before discussing payment.
-- Only if the prospect explicitly asks to start now should you ask SMS or email and call send_payment_link.
+- If scheduling a future callback, call schedule_callback and confirm exact time.
 - Before ending, call save_notes with outcome and summary.
 
 OUTCOMES:
@@ -153,8 +162,11 @@ def _assistant_tools(webhook_base_url: str, katy_phone: str, enable_transfer: bo
                     "properties": {
                         "callback_time": {"type": "string"},
                         "prospect_phone": {"type": "string"},
+                        "prospect_email": {"type": "string"},
+                        "contact_name": {"type": "string"},
                         "business_name": {"type": "string"},
                         "reason": {"type": "string"},
+                        "duration_minutes": {"type": "number"},
                     },
                     "required": ["callback_time", "prospect_phone", "business_name"],
                 },
@@ -177,11 +189,32 @@ def _assistant_tools(webhook_base_url: str, katy_phone: str, enable_transfer: bo
                         "objections": {"type": "string"},
                         "requires_transfer": {"type": "boolean"},
                         "callback_time": {"type": "string"},
+                        "opt_out": {"type": "boolean"},
                     },
                     "required": ["business_name", "prospect_phone", "outcome", "temperature", "notes"],
                 },
             },
             "server": {"url": f"{webhook_base_url}/vapi/save-notes"},
+        },
+        {
+            "type": "function",
+            "function": {
+                "name": "send_business_details",
+                "description": "Send a clear written summary of what was discussed, including pricing and next steps, by SMS or email",
+                "parameters": {
+                    "type": "object",
+                    "properties": {
+                        "business_name": {"type": "string"},
+                        "contact_name": {"type": "string"},
+                        "prospect_phone": {"type": "string"},
+                        "prospect_email": {"type": "string"},
+                        "delivery_method": {"type": "string", "description": "sms or email"},
+                        "details": {"type": "string", "description": "Short summary of what Eric promised to send"},
+                    },
+                    "required": ["delivery_method", "details"],
+                },
+            },
+            "server": {"url": f"{webhook_base_url}/vapi/send-business-details"},
         },
         {
             "type": "function",
@@ -202,6 +235,25 @@ def _assistant_tools(webhook_base_url: str, katy_phone: str, enable_transfer: bo
                 },
             },
             "server": {"url": f"{webhook_base_url}/vapi/send-payment-link"},
+        },
+        {
+            "type": "function",
+            "function": {
+                "name": "send_demo_link",
+                "description": "Send the demo and pricing page link to the prospect by SMS or email so they can see how the service works and choose a tier",
+                "parameters": {
+                    "type": "object",
+                    "properties": {
+                        "business_name": {"type": "string"},
+                        "contact_name": {"type": "string"},
+                        "prospect_phone": {"type": "string"},
+                        "prospect_email": {"type": "string"},
+                        "delivery_method": {"type": "string", "description": "sms or email"},
+                    },
+                    "required": ["delivery_method"],
+                },
+            },
+            "server": {"url": f"{webhook_base_url}/vapi/send-demo-link"},
         },
     ]
 
@@ -246,10 +298,10 @@ def _assistant_payload(phone_number_id: str, katy_phone: str, webhook_url: str =
             "temperature": 0.7,
         },
         "voice": {"provider": "11labs", "voiceId": "rachel"},
-        "firstMessage": "Hi, this is Eric, an AI sales agent for Katy. Is now a bad time for a quick reason I called?",
+        "firstMessage": "Hi, this is Eric, an AI sales agent for Katy. Press 9 now to opt out, or say stop at any time to opt out of future calls. Is now a bad time for a quick reason I called?",
         "tools": _assistant_tools(webhook_base_url, katy_phone, enable_transfer),
         "endCallMessage": "Thanks for your time. Have a great day.",
-        "endCallPhrases": ["goodbye", "bye", "not interested", "remove me"],
+        "endCallPhrases": ["goodbye", "bye", "not interested", "remove me", "stop", "opt out", "do not call"],
         "recordingEnabled": True,
         "hipaaEnabled": False,
         "phoneNumberId": phone_number_id,
@@ -362,7 +414,7 @@ async def make_call(
                 "services": services or "general services",
                 "business_intel": "\n".join(intel),
             },
-            "firstMessage": f"Hi, is this {prospect_name}? This is Eric, an AI sales agent for Katy.",
+            "firstMessage": f"Hi, is this {prospect_name}? This is Eric, an AI sales agent for Katy. Press 9 now to opt out, or say stop at any time to opt out of future calls.",
         },
         "metadata": {
             "business_name": business_name,

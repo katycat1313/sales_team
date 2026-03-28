@@ -41,6 +41,8 @@ MEMORY_PATH = Path("/app/memory/katy_brief.md")
 KATY_BRIEF = MEMORY_PATH.read_text() if MEMORY_PATH.exists() else ""
 LOG_DIR = Path("/app/logs")
 LOG_DIR.mkdir(exist_ok=True)
+COMPLIANCE_LOG_DIR = LOG_DIR / "compliance"
+COMPLIANCE_LOG_DIR.mkdir(exist_ok=True)
 
 event_stream = []
 approval_queue = []
@@ -80,6 +82,89 @@ def log_event(agent: str, event_type: str, content: str):
     with open(LOG_DIR / "events.jsonl", "a") as f:
         f.write(json.dumps(event) + "\n")
     return event
+
+
+def _write_jsonl(path: Path, payload: dict):
+    path.parent.mkdir(parents=True, exist_ok=True)
+    with open(path, "a", encoding="utf-8") as f:
+        f.write(json.dumps(payload) + "\n")
+
+
+def log_compliance_event(category: str, event_type: str, details: dict):
+    event = {
+        "timestamp": datetime.now(timezone.utc).isoformat(),
+        "category": category,
+        "type": event_type,
+        "details": details,
+    }
+    _write_jsonl(COMPLIANCE_LOG_DIR / f"{category}.jsonl", event)
+    return event
+
+
+def _prospect_is_blocked_by_compliance(prospect: dict) -> tuple[bool, str]:
+    if not prospect:
+        return False, ""
+    if str(prospect.get("next_action", "")).strip().lower() == "do_not_call":
+        return True, "next_action=do_not_call"
+    if str(prospect.get("dnc_status", "")).strip().lower() in {"internal_opt_out", "dnc", "revoked", "blocked"}:
+        return True, f"dnc_status={prospect.get('dnc_status')}"
+    if prospect.get("opt_out_at"):
+        return True, "opted_out"
+    return False, ""
+
+
+def _lookup_dnc_entry(phone: str) -> dict:
+    normalized = _normalize_phone(phone)
+    if not normalized:
+        return {}
+    from memory.memory import get_db
+    conn = get_db()
+    row = conn.execute(
+        "SELECT * FROM dnc_entries WHERE phone_number=?",
+        (normalized,),
+    ).fetchone()
+    conn.close()
+    return dict(row) if row else {}
+
+
+def _dnc_scrub(phone: str, business_name: str = "", prospect: dict | None = None) -> tuple[bool, str]:
+    blocked, reason = _prospect_is_blocked_by_compliance(prospect or {})
+    if blocked:
+        return True, reason
+    dnc_entry = _lookup_dnc_entry(phone)
+    if dnc_entry:
+        return True, f"dnc_list:{dnc_entry.get('reason') or dnc_entry.get('source') or 'blocked'}"
+    return False, ""
+
+
+def _record_dnc_entry(phone: str, business_name: str, reason: str, source: str = "internal_opt_out", notes: str = ""):
+    normalized = _normalize_phone(phone)
+    if not normalized:
+        return
+    from memory.memory import get_db
+    conn = get_db()
+    conn.execute(
+        """
+        INSERT INTO dnc_entries (phone_number, business_name, reason, source, notes, created_at, updated_at)
+        VALUES (?, ?, ?, ?, ?, datetime('now'), datetime('now'))
+        ON CONFLICT(phone_number) DO UPDATE SET
+            business_name=excluded.business_name,
+            reason=excluded.reason,
+            source=excluded.source,
+            notes=excluded.notes,
+            updated_at=datetime('now')
+        """,
+        (normalized, business_name, reason, source, notes),
+    )
+    conn.commit()
+    conn.close()
+    log_compliance_event("dnc", "added", {
+        "phone_number": normalized,
+        "business_name": business_name,
+        "reason": reason,
+        "source": source,
+        "notes": notes,
+    })
 
 def request_approval(agent: str, action: str, details: dict):
     item = {"id": len(approval_queue)+1, "timestamp": datetime.now().isoformat(),
@@ -165,6 +250,319 @@ async def _execute_agent_task(agent_name: str, task: str) -> str:
     result = await agent.run(task)
     log_event(agent_name, "result", result[:300])
     return result
+
+
+def _extract_json_prospects_blob(text: str) -> list[dict]:
+    if not text:
+        return []
+    m = re.search(r"<prospects_json>\s*(.*?)\s*</prospects_json>", text, flags=re.IGNORECASE | re.DOTALL)
+    if not m:
+        return []
+    raw = m.group(1).strip()
+    if not raw:
+        return []
+    try:
+        parsed = json.loads(raw)
+        if isinstance(parsed, dict):
+            parsed = [parsed]
+        if isinstance(parsed, list):
+            return [p for p in parsed if isinstance(p, dict)]
+    except Exception:
+        return []
+    return []
+
+
+def _extract_text_prospects_fallback(text: str) -> list[dict]:
+    if not text:
+        return []
+
+    chunks = [c.strip() for c in re.split(r"\n\s*\n", text) if c.strip()]
+    prospects = []
+
+    for chunk in chunks:
+        lower = chunk.lower()
+        if not any(token in lower for token in ["priority", "name", "company", "business", "why", "reach"]):
+            continue
+
+        lines = [ln.strip(" -*\t") for ln in chunk.splitlines() if ln.strip()]
+        if not lines:
+            continue
+
+        first_line = lines[0]
+        name = ""
+        location = ""
+        priority = "WARM"
+
+        m_name = re.search(r"(?:name\s*/\s*company|company|business|name)\s*:\s*(.+)$", chunk, flags=re.IGNORECASE | re.MULTILINE)
+        if m_name:
+            name = m_name.group(1).strip()
+        else:
+            name = re.sub(r"^\d+[\.)]\s*", "", first_line).strip()
+
+        m_loc = re.search(r"location\s*:\s*(.+)$", chunk, flags=re.IGNORECASE | re.MULTILINE)
+        if m_loc:
+            location = m_loc.group(1).strip()
+        else:
+            m_paren = re.search(r"\(([^\)]+)\)", first_line)
+            if m_paren:
+                location = m_paren.group(1).strip()
+
+        m_pri = re.search(r"\b(HOT|WARM|COLD)\b", chunk, flags=re.IGNORECASE)
+        if m_pri:
+            priority = m_pri.group(1).upper()
+
+        email_match = re.search(r"[A-Z0-9._%+-]+@[A-Z0-9.-]+\.[A-Z]{2,}", chunk, flags=re.IGNORECASE)
+        website_match = re.search(r"https?://[^\s)]+", chunk, flags=re.IGNORECASE)
+        phone_match = re.search(r"(?:\+?1[\s\-.]?)?\(?\d{3}\)?[\s\-.]?\d{3}[\s\-.]?\d{4}", chunk)
+
+        why_fit = ""
+        approach = ""
+        m_why = re.search(r"why\s+(?:they\s+are\s+)?a\s+good\s+fit\s*:\s*(.+)$", chunk, flags=re.IGNORECASE | re.MULTILINE)
+        if m_why:
+            why_fit = m_why.group(1).strip()
+        m_appr = re.search(r"suggested\s+first\s+approach\s*:\s*(.+)$", chunk, flags=re.IGNORECASE | re.MULTILINE)
+        if m_appr:
+            approach = m_appr.group(1).strip()
+
+        cleaned_name = re.sub(r"\s*\([^\)]*\)\s*", " ", name).strip(" -")
+        if len(cleaned_name) < 3:
+            continue
+
+        prospects.append({
+            "business_name": cleaned_name,
+            "location": location,
+            "phone": phone_match.group(0).strip() if phone_match else "",
+            "email": email_match.group(0).strip() if email_match else "",
+            "website": website_match.group(0).strip() if website_match else "",
+            "priority": priority,
+            "research_notes": why_fit,
+            "notes": approach,
+        })
+
+    return prospects
+
+
+def _normalize_parsed_prospects(items: list[dict]) -> list[dict]:
+    out = []
+    seen = set()
+
+    for raw in items:
+        business_name = str(raw.get("business_name") or raw.get("company") or raw.get("name") or "").strip()
+        if not business_name:
+            continue
+
+        location = str(raw.get("location") or "").strip()
+        niche = str(raw.get("niche") or DEFAULT_TARGET_NICHE).strip().lower()
+        if not _is_allowed_niche(niche):
+            niche = DEFAULT_TARGET_NICHE
+
+        priority = str(raw.get("priority") or "WARM").strip().upper()
+        if priority not in {"HOT", "WARM", "COLD"}:
+            priority = "WARM"
+
+        key = (business_name.lower(), location.lower())
+        if key in seen:
+            continue
+        seen.add(key)
+
+        notes_parts = [
+            str(raw.get("notes") or "").strip(),
+            str(raw.get("suggested_first_approach") or "").strip(),
+            str(raw.get("how_to_reach") or "").strip(),
+        ]
+        notes = " | ".join([p for p in notes_parts if p])[:900]
+
+        out.append({
+            "business_name": business_name,
+            "location": location,
+            "niche": niche,
+            "phone": str(raw.get("phone") or "").strip(),
+            "email": str(raw.get("email") or "").strip(),
+            "website": str(raw.get("website") or "").strip(),
+            "owner_name": str(raw.get("owner_name") or "").strip(),
+            "priority": priority,
+            "pipeline_stage": "found",
+            "gbp_score": 3.0,
+            "research_notes": str(raw.get("research_notes") or raw.get("why_fit") or "").strip()[:1200],
+            "notes": notes,
+        })
+
+    return out
+
+
+def _normalize_sheet_import_rows(items: list[dict]) -> list[dict]:
+    normalized = []
+    for raw in items:
+        if not isinstance(raw, dict):
+            continue
+
+        business_name = str(
+            raw.get("business_name")
+            or raw.get("Business Name")
+            or raw.get("company")
+            or raw.get("Company")
+            or raw.get("name")
+            or raw.get("Name")
+            or ""
+        ).strip()
+        if not business_name:
+            continue
+
+        location = str(
+            raw.get("location")
+            or raw.get("Location")
+            or raw.get("city_state")
+            or raw.get("City/State")
+            or raw.get("address")
+            or raw.get("Address")
+            or ""
+        ).strip()
+        if not location:
+            city = str(raw.get("city") or raw.get("City") or "").strip()
+            state = str(raw.get("state") or raw.get("State") or "").strip()
+            location = " ".join(part for part in [city, state] if part).strip()
+        if not location:
+            location = "Unknown"
+
+        niche = str(raw.get("niche") or raw.get("Niche") or DEFAULT_TARGET_NICHE).strip().lower()
+        if not _is_allowed_niche(niche):
+            niche = DEFAULT_TARGET_NICHE
+
+        priority = str(raw.get("priority") or raw.get("Priority") or "WARM").strip().upper()
+        if priority not in {"HOT", "WARM", "COLD"}:
+            priority = "WARM"
+
+        score_raw = raw.get("buyer_intent_score")
+        if score_raw is None:
+            score_raw = raw.get("Buyer Intent Score")
+        if score_raw is None:
+            score_raw = raw.get("gbp_score")
+        if score_raw is None:
+            score_raw = raw.get("GBP Score")
+        try:
+            score = min(float(score_raw), MAX_PROSPECT_SCORE)
+        except (TypeError, ValueError):
+            score = 3.0
+
+        notes_parts = [
+            str(raw.get("notes") or raw.get("Notes") or "").strip(),
+            str(raw.get("issues") or raw.get("Issues") or "").strip(),
+            str(raw.get("source") or raw.get("Source") or "google_sheets_import").strip(),
+        ]
+
+        normalized.append({
+            "business_name": business_name,
+            "location": location,
+            "niche": niche,
+            "phone": str(raw.get("phone") or raw.get("Phone") or "").strip(),
+            "email": str(raw.get("email") or raw.get("Email") or "").strip(),
+            "website": str(raw.get("website") or raw.get("Website") or "").strip(),
+            "owner_name": str(raw.get("owner_name") or raw.get("Owner Name") or "").strip(),
+            "priority": priority,
+            "pipeline_stage": "imported_sheet",
+            "gbp_score": score,
+            "research_notes": str(raw.get("research_notes") or raw.get("Research Notes") or "").strip()[:1200],
+            "notes": " | ".join([part for part in notes_parts if part])[:900],
+        })
+
+    return _normalize_parsed_prospects(normalized)
+
+
+async def _deep_dive_prospect_rows(rows: list[dict], limit: int = 5) -> dict:
+    from memory.memory import update_prospect
+    from tools.gbp_audit import lookup_phone_number
+
+    processed = 0
+    enriched_phone = 0
+    for item in rows[:max(0, min(limit, 10))]:
+        task = (
+            "Deep-dive this service business prospect for AI answering-service fit. "
+            f"Business: {item.get('business_name', '')}. "
+            f"Location: {item.get('location', '')}. "
+            f"Niche: {item.get('niche', '')}. "
+            f"Website: {item.get('website', '')}. "
+            f"Current notes: {item.get('notes', '')}. "
+            "Return concise research covering likely missed-call pain, likely buyer intent, and a first outreach angle."
+        )
+        try:
+            result = await _execute_agent_task("small_biz_expert", task)
+        except Exception as e:
+            result = f"Deep dive failed: {e}"
+
+        updates = {
+            "research_notes": str(result).strip()[:1500],
+            "pipeline_stage": "researched",
+        }
+        if not item.get("phone"):
+            try:
+                phone = await lookup_phone_number(item["business_name"], item["location"], website=item.get("website", ""))
+            except Exception:
+                phone = ""
+            if phone:
+                updates["phone"] = str(phone).strip()
+                enriched_phone += 1
+
+        update_prospect(item["business_name"], item["location"], **updates)
+        processed += 1
+
+    return {"deep_dived": processed, "enriched_phone": enriched_phone}
+
+
+async def _persist_prospects_from_result(agent_name: str, result_text: str) -> dict:
+    from memory.memory import save_prospect, update_prospect
+
+    if agent_name not in {"lead_gen", "coordinator", "team_leader"}:
+        return {"parsed": 0, "saved": 0, "updated": 0, "enriched_phone": 0}
+
+    parsed = _extract_json_prospects_blob(result_text)
+    if not parsed:
+        parsed = _extract_text_prospects_fallback(result_text)
+
+    rows = _normalize_parsed_prospects(parsed)
+    if not rows:
+        return {"parsed": 0, "saved": 0, "updated": 0, "enriched_phone": 0}
+
+    saved = 0
+    updated = 0
+    enriched_phone = 0
+
+    from tools.gbp_audit import lookup_phone_number
+
+    for item in rows:
+        is_new = save_prospect(item["business_name"], item["location"], **{k: v for k, v in item.items() if k not in {"business_name", "location"}})
+        if is_new:
+            saved += 1
+        else:
+            # If it already exists, still refresh fields if we got better data.
+            update_fields = {}
+            for k in ["owner_name", "phone", "email", "website", "priority", "research_notes", "notes", "niche"]:
+                val = item.get(k)
+                if isinstance(val, str):
+                    val = val.strip()
+                if val:
+                    update_fields[k] = val
+            if update_fields:
+                update_prospect(item["business_name"], item["location"], **update_fields)
+                updated += 1
+
+        # Lightweight deeper research pass: fill missing phone now if possible.
+        if not item.get("phone"):
+            try:
+                found_phone = await lookup_phone_number(item["business_name"], item["location"], website=item.get("website", ""))
+            except Exception:
+                found_phone = ""
+            if found_phone:
+                update_prospect(item["business_name"], item["location"], phone=str(found_phone).strip(), pipeline_stage="researched")
+                enriched_phone += 1
+
+    if saved or updated or enriched_phone:
+        log_event(
+            "system",
+            "action",
+            f"Prospect import from {agent_name}: parsed={len(rows)} saved={saved} updated={updated} enriched_phone={enriched_phone}",
+        )
+
+    return {"parsed": len(rows), "saved": saved, "updated": updated, "enriched_phone": enriched_phone}
 
 
 async def _run_scheduled_event(event_id: int):
@@ -323,6 +721,12 @@ def _prospect_score(prospect: dict) -> float:
         return 999.0
 
 
+def _eric_calling_enabled() -> bool:
+    """Outbound calling is disabled by default until explicitly enabled."""
+    val = str(os.getenv("ENABLE_ERIC_CALLS", "false")).strip().lower()
+    return val in {"1", "true", "yes", "on"}
+
+
 INTENT_TERMS = {
     "24/7", "24 hour", "24-hour", "emergency", "urgent", "same day", "same-day",
     "after hours", "after-hours", "dispatch", "call now", "immediate service",
@@ -363,35 +767,32 @@ def _normalize_intent_niche(term: str) -> str:
 
 
 async def _search_intent_directory(term: str, location: str, limit: int = 8) -> list:
-    term_q = str(term).replace(" ", "+")
-    loc_q = str(location).replace(" ", "+")
-    url = f"https://www.yellowpages.com/search?search_terms={term_q}&geo_location_terms={loc_q}"
-    headers = {
-        "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36"
-    }
-    async with httpx.AsyncClient(headers=headers, follow_redirects=True, timeout=20) as client:
-        resp = await client.get(url)
-    if resp.status_code != 200:
-        return []
-    html = resp.text
-    blocks = re.split(r'(?=<div[^>]+class="[^"]*(?:result|organic)[^"]*")', html)
+    from tools.gbp_audit import search_google_maps, lookup_phone_number
+
     out = []
     seen = set()
-    for block in blocks:
+    results = await search_google_maps(term, location, limit=limit)
+
+    for item in results:
         if len(out) >= limit:
             break
-        name_m = re.search(r'class="business-name"[^>]*>([^<]+)</a>', block)
-        if not name_m:
+        if not isinstance(item, dict) or item.get("error"):
             continue
-        name = re.sub(r"\s+", " ", name_m.group(1)).strip()
+
+        name = str(item.get("name", "")).strip()
         if not name or name.lower() in seen:
             continue
-        phone_m = re.search(r'class="phones phone primary">([^<]+)</div>', block)
-        phone = phone_m.group(1).strip() if phone_m else ""
+
+        phone = str(item.get("phone", "") or "").strip()
+        website = str(item.get("website", "") or "").strip()
+
+        # Many Yelp/Maps results omit phone on listing pages; enrich via search.
+        if not phone:
+            phone = str(await lookup_phone_number(name, location, website)).strip()
+
         if not phone:
             continue
-        site_m = re.search(r'class="track-visit-website"[^>]*href="([^"]+)"', block)
-        website = site_m.group(1).strip() if site_m else ""
+
         seen.add(name.lower())
         out.append({
             "business_name": name,
@@ -399,7 +800,9 @@ async def _search_intent_directory(term: str, location: str, limit: int = 8) -> 
             "website": website,
             "location": location,
             "term": term,
+            "source": item.get("source", "multi"),
         })
+
     return out
 
 @asynccontextmanager
@@ -423,11 +826,10 @@ app.add_middleware(CORSMiddleware, allow_origins=["*"], allow_methods=["*"], all
 
 @app.get("/dashboard")
 def dashboard():
-    # Try container path first, then local dev path
+    # Serve the modern dashboard file only.
     for candidate in [
         Path("/app/dashboard/index.html"),
-        Path(__file__).parent.parent / "dashboard.html",
-        Path("dashboard.html"),
+        Path(__file__).parent.parent / "dashboard" / "index.html",
     ]:
         if candidate.exists():
             return FileResponse(str(candidate), media_type="text/html",
@@ -439,6 +841,42 @@ def dashboard():
 def get_logs(limit: int = 100):
     """Alias for /events — returns recent agent activity logs."""
     return list(reversed(event_stream))[:limit]
+
+
+@app.get("/compliance/logs")
+def get_compliance_logs(category: str = "all", limit: int = 100):
+    safe_limit = max(1, min(int(limit or 100), 500))
+    files = [
+        COMPLIANCE_LOG_DIR / f"{category}.jsonl"
+    ] if category != "all" else sorted(COMPLIANCE_LOG_DIR.glob("*.jsonl"))
+    rows = []
+    for file_path in files:
+        if not file_path.exists():
+            continue
+        with open(file_path, "r", encoding="utf-8") as f:
+            for line in f:
+                line = line.strip()
+                if not line:
+                    continue
+                try:
+                    rows.append(json.loads(line))
+                except Exception:
+                    continue
+    rows.sort(key=lambda item: item.get("timestamp", ""), reverse=True)
+    return rows[:safe_limit]
+
+
+@app.get("/compliance/dnc")
+def get_internal_dnc_list(limit: int = 200):
+    from memory.memory import get_db
+    safe_limit = max(1, min(int(limit or 200), 1000))
+    conn = get_db()
+    rows = conn.execute(
+        "SELECT * FROM dnc_entries ORDER BY updated_at DESC LIMIT ?",
+        (safe_limit,),
+    ).fetchall()
+    conn.close()
+    return [dict(row) for row in rows]
 
 @app.get("/")
 def root():
@@ -564,6 +1002,15 @@ async def run_task(body: dict):
     agent_name = body.get("agent", "coordinator")
     try:
         result = await _execute_agent_task(agent_name, task)
+        import_stats = await _persist_prospects_from_result(agent_name, result)
+        if import_stats.get("parsed", 0) > 0:
+            result = (
+                f"{result}\n\n"
+                f"[pipeline] prospects parsed={import_stats['parsed']} "
+                f"saved={import_stats['saved']} "
+                f"updated={import_stats['updated']} "
+                f"phone_enriched={import_stats['enriched_phone']}"
+            )
         return {"result": result}
     except ValueError as e:
         return {"error": str(e)}
@@ -744,7 +1191,9 @@ def get_call_list(count: int = 20, priority: str = None):
     all_rows = get_prospects(priority=priority, limit=500)
     rows = [
         p for p in all_rows
-        if str(p.get("phone", "")).strip() and not _is_legacy_profile_opportunity(p)
+        if str(p.get("phone", "")).strip()
+        and not _is_legacy_profile_opportunity(p)
+        and not _dnc_scrub(p.get("phone", ""), p.get("business_name", ""), p)[0]
     ]
 
     priority_order = {"HOT": 0, "WARM": 1, "COLD": 2}
@@ -769,20 +1218,26 @@ async def discover_intent_prospects(body: dict | None = None):
     queries = payload.get("queries") or [
         {"term": "24 hour locksmith", "location": "Houston TX"},
         {"term": "emergency plumber", "location": "Dallas TX"},
-        {"term": "24 hour hvac", "location": "Phoenix AZ"},
-        {"term": "emergency electrician", "location": "San Antonio TX"},
-        {"term": "24 hour towing", "location": "Columbus OH"},
+        {"term": "after hours electrician", "location": "San Antonio TX"},
+        {"term": "weekend plumber", "location": "Phoenix AZ"},
+        {"term": "urgent locksmith", "location": "Columbus OH"},
     ]
     per_query = max(1, min(int(payload.get("per_query", 8)), 20))
 
     saved = 0
     scanned = 0
+    rejected = 0
+    source_errors = []
     for q in queries:
         term = str(q.get("term", "")).strip()
         location = str(q.get("location", "")).strip()
         if not term or not location:
             continue
-        matches = await _search_intent_directory(term, location, per_query)
+        try:
+            matches = await _search_intent_directory(term, location, per_query)
+        except Exception as e:
+            source_errors.append({"term": term, "location": location, "error": str(e)})
+            continue
         for m in matches:
             scanned += 1
             niche = _normalize_intent_niche(term)
@@ -803,6 +1258,8 @@ async def discover_intent_prospects(body: dict | None = None):
             )
             if is_new:
                 saved += 1
+            else:
+                rejected += 1
 
     current = get_prospects(priority="HOT", limit=500)
     current = [p for p in current if str(p.get("phone", "")).strip() and not _is_legacy_profile_opportunity(p)]
@@ -811,8 +1268,117 @@ async def discover_intent_prospects(body: dict | None = None):
         "queries": len(queries),
         "scanned": scanned,
         "saved": saved,
+        "rejected": rejected,
         "callable_now": len(current),
+        "source_errors": source_errors[:10],
         "items": current[:20],
+    }
+
+@app.post("/prospects")
+def create_prospect(body: dict):
+    """Add a new prospect manually."""
+    from memory.memory import save_prospect
+    business_name = body.get("business_name", "").strip()
+    location = body.get("location", "").strip()
+    
+    if not business_name or not location:
+        return {"created": False, "reason": "business_name and location are required"}
+    
+    # Extract allowed fields
+    allowed_fields = {
+        "phone", "email", "website", "owner_name", "niche", "priority", 
+        "pipeline_stage", "research_notes", "notes", "gbp_score",
+        "dnc_status", "dnc_checked_at", "dnc_source", "opt_out_at", "opt_out_reason",
+        "ai_call_written_consent", "ai_call_express_consent", "ai_call_consent_source",
+        "ai_call_consent_notes", "ai_call_consent_updated_at"
+    }
+    kwargs = {k: v for k, v in body.items() if k in allowed_fields and v is not None}
+    
+    # Set defaults if not provided
+    if "niche" not in kwargs:
+        kwargs["niche"] = "general_service"
+    if "priority" not in kwargs:
+        kwargs["priority"] = "WARM"
+    if "pipeline_stage" not in kwargs:
+        kwargs["pipeline_stage"] = "manual_entry"
+    
+    is_new = save_prospect(business_name, location, **kwargs)
+    
+    if not is_new:
+        return {"created": False, "reason": "prospect already exists or failed niche validation"}
+    
+    log_event("system", "action", f"New prospect added manually: {business_name}, {location}")
+    
+    # Fetch and return the newly created prospect
+    from memory.memory import get_db
+    conn = get_db()
+    row = conn.execute(
+        "SELECT * FROM prospects WHERE business_name=? AND location=? ORDER BY id DESC LIMIT 1",
+        (business_name, location)
+    ).fetchone()
+    conn.close()
+    
+    if row:
+        prospect = dict(row)
+        return {"created": True, "prospect": prospect}
+    
+    return {"created": True, "prospect": None}
+
+
+@app.post("/prospects/import-from-sheets")
+async def import_prospects_from_sheets(body: dict | None = None):
+    from memory.memory import save_prospect, update_prospect
+
+    payload = body or {}
+    expected_token = str(os.getenv("GOOGLE_SHEETS_IMPORT_TOKEN", os.getenv("GOOGLE_SHEETS_WEBAPP_TOKEN", ""))).strip()
+    provided_token = str(payload.get("token") or "").strip()
+    if expected_token and provided_token != expected_token:
+        return {"ok": False, "reason": "invalid token"}
+
+    rows = payload.get("rows") or payload.get("prospects") or []
+    if isinstance(rows, dict):
+        rows = [rows]
+
+    normalized = _normalize_sheet_import_rows(rows)
+    if not normalized:
+        return {"ok": False, "reason": "no valid rows", "received": len(rows) if isinstance(rows, list) else 0}
+
+    saved = 0
+    updated = 0
+    imported_rows = []
+    for item in normalized:
+        fields = {k: v for k, v in item.items() if k not in {"business_name", "location"}}
+        is_new = save_prospect(item["business_name"], item["location"], **fields)
+        if is_new:
+            saved += 1
+        else:
+            update_prospect(item["business_name"], item["location"], **fields)
+            updated += 1
+        imported_rows.append(item)
+
+    deep_dive = bool(payload.get("deep_dive"))
+    deep_dive_limit = payload.get("deep_dive_limit", 5)
+    try:
+        deep_dive_limit = int(deep_dive_limit)
+    except (TypeError, ValueError):
+        deep_dive_limit = 5
+
+    deep_dive_stats = {"deep_dived": 0, "enriched_phone": 0}
+    if deep_dive:
+        deep_dive_stats = await _deep_dive_prospect_rows(imported_rows, limit=deep_dive_limit)
+
+    log_event(
+        "system",
+        "action",
+        f"Sheet import: received={len(rows)} parsed={len(normalized)} saved={saved} updated={updated} deep_dived={deep_dive_stats['deep_dived']}",
+    )
+    return {
+        "ok": True,
+        "received": len(rows),
+        "parsed": len(normalized),
+        "saved": saved,
+        "updated": updated,
+        **deep_dive_stats,
     }
 
 @app.patch("/prospects/{prospect_id}")
@@ -820,17 +1386,38 @@ def patch_prospect(prospect_id: int, body: dict):
     """Update any fields on a prospect by ID."""
     from memory.memory import get_db
     allowed = {"owner_name","phone","email","website","priority","pipeline_stage",
-               "research_notes","notes","niche","outreach_draft"}
+               "research_notes","notes","niche","outreach_draft","dnc_status",
+               "dnc_checked_at","dnc_source","opt_out_at","opt_out_reason",
+               "ai_call_written_consent","ai_call_express_consent","ai_call_consent_source",
+               "ai_call_consent_notes","ai_call_consent_updated_at"}
     updates = {k:v for k,v in body.items() if k in allowed and v is not None}
     if not updates:
         return {"updated": False, "reason": "no valid fields"}
     conn = get_db()
+    existing = conn.execute("SELECT * FROM prospects WHERE id=?", (prospect_id,)).fetchone()
     set_clause = ", ".join(f"{k}=?" for k in updates)
     set_clause += ", updated_at=datetime('now')"
     conn.execute(f"UPDATE prospects SET {set_clause} WHERE id=?",
                  list(updates.values()) + [prospect_id])
     conn.commit()
     conn.close()
+    if existing:
+        existing_dict = dict(existing)
+        if updates.get("dnc_status") in {"internal_opt_out", "dnc", "revoked", "blocked"} or updates.get("opt_out_at"):
+            _record_dnc_entry(
+                existing_dict.get("phone", ""),
+                existing_dict.get("business_name", ""),
+                updates.get("opt_out_reason") or updates.get("dnc_status") or "manual_update",
+                source=updates.get("dnc_source") or "manual_update",
+                notes=updates.get("ai_call_consent_notes") or "",
+            )
+        if any(key in updates for key in {"ai_call_written_consent", "ai_call_express_consent", "ai_call_consent_source", "ai_call_consent_notes"}):
+            log_compliance_event("consent", "updated", {
+                "prospect_id": prospect_id,
+                "business_name": existing_dict.get("business_name", ""),
+                "phone": _normalize_phone(existing_dict.get("phone", "")),
+                "updates": updates,
+            })
     log_event("system", "action", f"Prospect {prospect_id} updated: {list(updates.keys())}")
     return {"updated": True, "id": prospect_id, "fields": list(updates.keys())}
 
@@ -865,6 +1452,32 @@ async def fill_missing_phones():
             filled += 1
             log_event("system", "action", f"📞 Found phone for {p['business_name']}: {phone}")
     return {"checked": len(missing), "filled": filled}
+
+
+@app.get("/prospects/sheets-sync-status")
+def prospect_sheets_sync_status():
+    from tools.sheets_tool import sheets_sync_config_status
+    return sheets_sync_config_status()
+
+
+@app.post("/prospects/sheets-sync-test")
+def prospect_sheets_sync_test(body: dict | None = None):
+    from tools.sheets_tool import push_prospect_sync
+    payload = body or {}
+    sample = {
+        "business_name": payload.get("business_name") or "SYNC TEST - Katy Pipeline",
+        "phone": payload.get("phone") or "",
+        "location": payload.get("location") or "Charleston WV",
+        "niche": payload.get("niche") or DEFAULT_TARGET_NICHE,
+        "gbp_score": payload.get("gbp_score") or 3.0,
+        "priority": payload.get("priority") or "WARM",
+        "gbp_issues": payload.get("gbp_issues") or ["sync_test"],
+        "website": payload.get("website") or "",
+        "maps_url": payload.get("maps_url") or "",
+        "notes": payload.get("notes") or "manual sheets sync test",
+    }
+    ok = push_prospect_sync(sample)
+    return {"ok": ok, "sample": sample}
 
 
 @app.post("/execute")
@@ -916,15 +1529,37 @@ async def trigger_vapi_call(body: dict):
     from tools.vapi_tool import make_call
     from memory.memory import get_prospects
 
+    if not _eric_calling_enabled():
+        log_event("vapi", "warn", "Blocked outbound call: ENABLE_ERIC_CALLS is false")
+        return {
+            "blocked": True,
+            "reason": "Outbound calling is disabled. Set ENABLE_ERIC_CALLS=true only after manual phone verification.",
+        }
+
     # Auto-fill from prospect database if phone matches
     prospect_phone = body.get("prospect_phone", "")
     all_prospects = get_prospects(limit=500)
     prospect_data = _find_matching_prospect(prospect_phone, all_prospects)
     call_spec = _build_vapi_call_spec(body, prospect_data)
+    blocked, reason = _dnc_scrub(call_spec.get("prospect_phone", ""), call_spec.get("business_name", ""), prospect_data)
+    if blocked:
+        log_event("vapi", "warn", f"Blocked outbound call to {call_spec.get('business_name') or prospect_phone}: {reason}")
+        log_compliance_event("call_screening", "blocked", {
+            "business_name": call_spec.get("business_name", ""),
+            "prospect_phone": _normalize_phone(call_spec.get("prospect_phone", "")),
+            "reason": reason,
+            "mode": "single_call",
+        })
+        return {"blocked": True, "reason": f"DNC scrub blocked this call: {reason}"}
 
     result = await make_call(**call_spec)
     business_name = call_spec.get("business_name") or body.get("business_name") or "unknown prospect"
     log_event("vapi", "action", f"Call triggered to {business_name} — {result.get('id', 'error')}")
+    log_compliance_event("call_screening", "passed", {
+        "business_name": business_name,
+        "prospect_phone": _normalize_phone(call_spec.get("prospect_phone", "")),
+        "mode": "single_call",
+    })
     return result
 
 
@@ -938,6 +1573,16 @@ async def trigger_vapi_call_list(body: dict):
     """
     from tools.vapi_tool import make_calls_batch, is_configured
     from memory.memory import get_prospects, update_prospect
+
+    if not _eric_calling_enabled():
+        log_event("vapi", "warn", "Blocked batch outbound calls: ENABLE_ERIC_CALLS is false")
+        return {
+            "queued": 0,
+            "failed": 0,
+            "results": [],
+            "blocked": True,
+            "error": "Outbound calling is disabled. Set ENABLE_ERIC_CALLS=true only after manual phone verification.",
+        }
 
     if not is_configured():
         return {"queued": 0, "results": [], "error": "VAPI_API_KEY not set"}
@@ -1009,6 +1654,16 @@ async def trigger_vapi_call_list(body: dict):
             continue
         if not _normalize_phone(prospect.get("phone", "")):
             skipped.append({"business_name": business_name, "reason": "missing phone"})
+            continue
+        blocked, reason = _dnc_scrub(prospect.get("phone", ""), business_name, prospect)
+        if blocked:
+            skipped.append({"business_name": business_name, "reason": f"dnc_blocked:{reason}"})
+            log_compliance_event("call_screening", "blocked", {
+                "business_name": business_name,
+                "prospect_phone": _normalize_phone(prospect.get("phone", "")),
+                "reason": reason,
+                "mode": "batch_call",
+            })
             continue
 
         call_specs.append(_build_vapi_call_spec({}, prospect))
@@ -1108,8 +1763,11 @@ async def vapi_schedule_callback(body: dict):
         params = body.get("message", {}).get("functionCall", {}).get("parameters", body)
         callback_time = params.get("callback_time", "")
         prospect_phone = params.get("prospect_phone", "")
+        prospect_email = params.get("prospect_email", "")
+        contact_name = params.get("contact_name", "")
         business_name = params.get("business_name", "")
         reason = params.get("reason", "")
+        duration_minutes = int(params.get("duration_minutes", 20) or 20)
 
         from memory.memory import get_prospects, update_prospect
         prospects = get_prospects()
@@ -1131,10 +1789,222 @@ async def vapi_schedule_callback(body: dict):
                 notes=notes_text,
             )
 
-        log_event("vapi", "action", f"Callback scheduled: {business_name} — {callback_time}")
-        return {"result": f"Callback scheduled for {callback_time}. I'll make sure Katy follows up then."}
+        calendar_created = False
+        calendar_link = ""
+        calendar_error = ""
+        try:
+            schedule_dt = _parse_schedule_time(callback_time)
+            from tools.google_calendar_tool import create_event
+            cal_res = create_event(
+                summary=f"Katy Follow-up: {business_name or 'Prospect'}",
+                start_at=schedule_dt,
+                duration_minutes=duration_minutes,
+                description=(
+                    f"Callback scheduled by Eric.\n"
+                    f"Business: {business_name}\n"
+                    f"Phone: {prospect_phone}\n"
+                    f"Reason: {reason or 'general follow-up'}"
+                ),
+                attendee_email=prospect_email,
+            )
+            calendar_created = bool(cal_res.get("created"))
+            calendar_link = cal_res.get("html_link", "")
+            calendar_error = cal_res.get("error", "")
+        except Exception as e:
+            calendar_error = str(e)
+
+        # Send Calendly booking link via SMS if configured
+        calendly_link = os.getenv("CALENDLY_LINK", "")
+        sms_sent = False
+        if calendly_link and prospect_phone:
+            try:
+                from tools.sms_tool import send_sms
+                clean_phone = prospect_phone if prospect_phone.startswith("+") else f"+1{prospect_phone.replace('-','').replace(' ','').replace('(','').replace(')','')[-10:]}"
+                sms_body = (
+                    f"Hi{(' ' + (match['contact_name'] if match and match.get('contact_name') else '')) if (match and match.get('contact_name')) else ''}, "
+                    f"this is Eric from Katy's team. Use this link to pick a time that works for your follow-up call: {calendly_link}"
+                )
+                res = send_sms(to_number=clean_phone, body=sms_body)
+                sms_sent = bool(res.get("sent"))
+            except Exception:
+                pass
+
+        if calendar_created and match:
+            try:
+                update_prospect(
+                    business_name=match["business_name"],
+                    location=match.get("location", ""),
+                    notes=json.dumps({
+                        "callback_time": callback_time,
+                        "calendar_event": calendar_link,
+                        "prospect_email": prospect_email,
+                        "contact_name": contact_name,
+                    }),
+                )
+            except Exception:
+                pass
+
+        log_event(
+            "vapi",
+            "action",
+            f"Callback scheduled: {business_name} — {callback_time}"
+            + (" + booking link sent" if sms_sent else "")
+            + (" + calendar event created" if calendar_created else (f" + calendar skipped ({calendar_error})" if calendar_error else "")),
+        )
+        suffix_parts = []
+        if calendar_created:
+            suffix_parts.append("I also put it on Katy's calendar")
+        if sms_sent:
+            suffix_parts.append("and texted a booking link so they can self-schedule")
+        suffix = (" " + "; ".join(suffix_parts) + ".") if suffix_parts else " I'll make sure Katy follows up then."
+        return {"result": f"Callback scheduled for {callback_time}.{suffix}"}
     except Exception as e:
         return {"result": f"Callback noted. ({e})"}
+
+
+@app.post("/vapi/send-demo-link")
+async def vapi_send_demo_link(body: dict):
+    """Eric calls this to send the demo and pricing page to a prospect by SMS or email."""
+    try:
+        params = body.get("message", {}).get("functionCall", {}).get("parameters", body)
+        business_name = params.get("business_name", "")
+        contact_name = params.get("contact_name", "")
+        prospect_phone = params.get("prospect_phone", "")
+        prospect_email = params.get("prospect_email", "")
+        delivery_method = str(params.get("delivery_method", "sms")).strip().lower()
+
+        demo_url = os.getenv("DEMO_URL", "") or os.getenv("ORCHESTRATOR_URL", "").rstrip("/") + "/demo"
+
+        greeting = f"Hi{(' ' + contact_name) if contact_name else ''}"
+        message = (
+            f"{greeting}, here is a quick look at how the missed-call answering service works "
+            f"and all three pricing tiers so you can review at your own pace: {demo_url}"
+        )
+
+        sent_ok = False
+        delivery_note = ""
+
+        if delivery_method == "email":
+            if not prospect_email:
+                return {"result": "I can send it by email, but I still need your best email address."}
+            from tools.gmail_tool import send_email
+            res = send_email(
+                to=prospect_email,
+                subject="See How the Missed-Call Answering Service Works",
+                body=message,
+                from_name="Katy Team",
+            )
+            sent_ok = bool(res.get("sent"))
+            delivery_note = "email"
+        else:
+            if not prospect_phone:
+                return {"result": "I can send it by text, but I still need your best mobile number."}
+            from tools.sms_tool import send_sms
+            res = send_sms(to_number=prospect_phone, body=message)
+            sent_ok = bool(res.get("sent"))
+            delivery_note = "sms"
+
+        # Update prospect pipeline stage
+        from memory.memory import get_prospects, update_prospect
+        prospects = get_prospects()
+        clean = prospect_phone.replace("+1", "").replace("-", "").replace(" ", "")
+        match = next((p for p in prospects if clean and clean in str(p.get("phone", "")).replace("-", "").replace(" ", "")), None)
+        if match:
+            update_prospect(
+                business_name=match["business_name"],
+                location=match.get("location", ""),
+                pipeline_stage="demo_sent",
+                last_call_outcome="qualified",
+                next_action="await_demo_review",
+                call_result_summary=f"Demo link sent via {delivery_note}",
+                notes=json.dumps({"demo_link_sent": demo_url, "delivery_method": delivery_note}),
+            )
+
+        log_event("vapi", "action", f"Demo link sent via {delivery_note}: {business_name or prospect_phone}")
+        if sent_ok:
+            return {"result": f"Done. I just texted them the demo link. They can review the tiers and pay whenever they are ready."}
+        return {"result": "I generated the demo link but delivery failed. Want me to retry?"}
+    except Exception as e:
+        log_event("vapi", "thought", f"send-demo-link error: {e}")
+        return {"result": "I hit a technical issue sending the demo link. Please try again in a moment."}
+
+
+@app.post("/vapi/send-business-details")
+async def vapi_send_business_details(body: dict):
+    """Eric sends detailed written follow-up by SMS or email during the call."""
+    try:
+        params = body.get("message", {}).get("functionCall", {}).get("parameters", body)
+        business_name = params.get("business_name", "")
+        contact_name = params.get("contact_name", "")
+        prospect_phone = params.get("prospect_phone", "")
+        prospect_email = params.get("prospect_email", "")
+        delivery_method = str(params.get("delivery_method", "sms")).strip().lower()
+        details = str(params.get("details", "")).strip()
+
+        if not details:
+            return {"result": "I can send details now, but I still need what summary to send."}
+
+        greeting = f"Hi{(' ' + contact_name) if contact_name else ''},"
+        pricing_block = (
+            "\n\nCurrent tiers:\n"
+            "- Starter: $500 setup + $97/month\n"
+            "- Standard: $1,000 setup + $197/month\n"
+            "- Pro: $2,000 setup + $297/month"
+        )
+        message = (
+            f"{greeting} here are the details we discussed for {business_name or 'your business'}:\n\n"
+            f"{details}{pricing_block}\n\n"
+            "If you want, I can also send the demo page or secure payment link next."
+        )
+
+        sent_ok = False
+        delivery_note = ""
+
+        if delivery_method == "email":
+            if not prospect_email:
+                return {"result": "I can send this by email, but I still need the best email address."}
+            from tools.gmail_tool import send_email
+            res = send_email(
+                to=prospect_email,
+                subject="Your Requested Service Details",
+                body=message,
+                from_name="Katy Team",
+            )
+            sent_ok = bool(res.get("sent"))
+            delivery_note = "email"
+        else:
+            if not prospect_phone:
+                return {"result": "I can send this by text, but I still need the best mobile number."}
+            from tools.sms_tool import send_sms
+            res = send_sms(to_number=prospect_phone, body=message)
+            sent_ok = bool(res.get("sent"))
+            delivery_note = "sms"
+
+        from memory.memory import get_prospects, update_prospect
+        prospects = get_prospects()
+        clean = prospect_phone.replace("+1", "").replace("-", "").replace(" ", "")
+        match = next((p for p in prospects if clean and clean in str(p.get("phone", "")).replace("-", "").replace(" ", "")), None)
+        if match:
+            update_prospect(
+                business_name=match["business_name"],
+                location=match.get("location", ""),
+                call_result_summary=f"Business details sent via {delivery_note}",
+                notes=json.dumps({
+                    "details_sent": details,
+                    "delivery_method": delivery_note,
+                    "business_name": business_name,
+                }),
+            )
+
+        if sent_ok:
+            log_event("vapi", "action", f"Business details sent via {delivery_note}: {business_name or prospect_phone}")
+            return {"result": f"Done. I sent the requested details by {delivery_note}."}
+
+        log_event("vapi", "thought", f"Business details delivery failed ({delivery_note}): {business_name or prospect_phone}")
+        return {"result": "I prepared the details but delivery failed. I can retry now."}
+    except Exception as e:
+        log_event("vapi", "thought", f"send-business-details error: {e}")
+        return {"result": "I hit a technical issue sending the details. Please try again in a moment."}
 
 
 @app.post("/vapi/save-notes")
@@ -1149,6 +2019,7 @@ async def vapi_save_notes(body: dict):
         notes = params.get("notes", "")
         objections = params.get("objections", "")
         requires_transfer = params.get("requires_transfer", False)
+        opt_out = bool(params.get("opt_out", False))
 
         from memory.memory import get_prospects, update_prospect, get_availability
         prospects = get_prospects()
@@ -1159,6 +2030,10 @@ async def vapi_save_notes(body: dict):
         katy_avail = get_availability()
         next_action = "do_not_call"  # default
         
+        notes_blob = " ".join([str(notes), str(objections), str(outcome)]).lower()
+        if any(token in notes_blob for token in ["opt out", "stop", "remove me", "do not call", "don't call", "dont call"]):
+            opt_out = True
+
         if outcome == "qualified" and requires_transfer:
             if katy_avail.get("available_now"):
                 next_action = "transfer_now"
@@ -1172,6 +2047,10 @@ async def vapi_save_notes(body: dict):
             next_action = "close"
         elif outcome == "no_answer":
             next_action = "retry"
+
+        if opt_out:
+            outcome = "not_interested"
+            next_action = "do_not_call"
 
         callback_due = params.get("callback_time", None)
         callback_reason = ""
@@ -1207,12 +2086,33 @@ async def vapi_save_notes(body: dict):
                 requires_human_transfer=1 if next_action == "transfer_now" else 0,
                 transfer_status="ready" if next_action == "transfer_now" else "not_ready",
                 call_attempts=int(match.get("call_attempts") or 0) + 1,
-                pipeline_stage=outcome,
+                pipeline_stage="do_not_call" if opt_out else outcome,
+                opt_out_at=datetime.now(timezone.utc).isoformat() if opt_out else match.get("opt_out_at"),
+                opt_out_reason="verbal_opt_out" if opt_out else match.get("opt_out_reason", ""),
+                dnc_status="internal_opt_out" if opt_out else (match.get("dnc_status") or "clear"),
+                dnc_checked_at=datetime.now(timezone.utc).isoformat(),
+                dnc_source="vapi_eric" if opt_out else (match.get("dnc_source") or ""),
                 notes=notes_text,
             )
 
+            if opt_out:
+                _record_dnc_entry(
+                    prospect_phone,
+                    match.get("business_name", business_name),
+                    "verbal_opt_out",
+                    source="vapi_eric",
+                    notes=notes,
+                )
+
         action_emoji = {"transfer_now": "🤝", "schedule_callback": "📅", "do_not_call": "🛑", "retry": "🔄", "close": "✅"}.get(next_action, "—")
         log_event("vapi", "action", f"Call saved: {business_name} — {outcome} ({temperature}) — {action_emoji} Next: {next_action}")
+        log_compliance_event("call_outcomes", "saved", {
+            "business_name": business_name,
+            "prospect_phone": _normalize_phone(prospect_phone),
+            "outcome": outcome,
+            "next_action": next_action,
+            "opt_out": opt_out,
+        })
         return {"result": f"Notes saved. Next action: {next_action}"}
     except Exception as e:
         return {"result": f"Notes saved. ({e})"}

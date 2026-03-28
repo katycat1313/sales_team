@@ -200,8 +200,8 @@ body{display:grid;grid-template-columns:56px 1fr}
   <div class="stats mb24">
     <div class="stat"><div class="stat-v c-teal" id="s-agents">—</div><div class="stat-l">agents<br>online</div></div>
     <div class="stat"><div class="stat-v c-gold" id="s-appr">—</div><div class="stat-l">pending<br>approvals</div></div>
-    <div class="stat"><div class="stat-v c-green" id="s-prospects">—</div><div class="stat-l">prospects<br>found</div></div>
-    <div class="stat"><div class="stat-v c-ember" id="s-hot">—</div><div class="stat-l">hot<br>leads</div></div>
+    <div class="stat" onclick="openProspectsFromStat('all')" style="cursor:pointer" title="Open all prospects"><div class="stat-v c-green" id="s-prospects">—</div><div class="stat-l">prospects<br>found</div></div>
+    <div class="stat" onclick="openProspectsFromStat('hot')" style="cursor:pointer" title="Open HOT prospects"><div class="stat-v c-ember" id="s-hot">—</div><div class="stat-l">hot<br>leads</div></div>
     <div class="stat"><div class="stat-v c-ink3" id="s-events">0</div><div class="stat-l">events<br>logged</div></div>
   </div>
   <div style="display:flex;gap:10px;margin-bottom:28px;flex-wrap:wrap">
@@ -370,7 +370,11 @@ body{display:grid;grid-template-columns:56px 1fr}
 <div class="pg" id="pg-prospects"><div class="pg-inner">
   <div class="eyebrow">call list</div>
   <div class="headline">Prospects</div>
-  <div class="sub">Real businesses with real phone numbers. Click Call to have Eric dial them.</div>
+  <div class="sub">Real businesses with real phone numbers. Choose call mode: AI dials or you dial.</div>
+
+  <div style="margin-bottom:14px">
+    <button onclick="showAddProspectModal()" style="background:var(--violet);color:#fff;padding:10px 16px;border-radius:8px;border:none;font-size:13px;font-weight:600;cursor:pointer">+ Add Prospect Manually</button>
+  </div>
 
   <div style="display:flex;gap:10px;margin-bottom:16px;flex-wrap:wrap;align-items:center">
     <a href="https://docs.google.com/spreadsheets/d/12PoYqddT3FzQAlvL871cR4kUfk3X37M_qO10oT2V65c/edit" target="_blank"
@@ -388,9 +392,15 @@ body{display:grid;grid-template-columns:56px 1fr}
     <button onclick="buildCallList(this)" style="background:var(--gold3);color:var(--gold);padding:9px 16px;border-radius:8px;border:1px solid rgba(212,168,67,.3);font-size:13px;cursor:pointer">☎ Build Call List</button>
     <button onclick="enrichAndBuildCallList(this)" style="background:var(--sky2);color:var(--sky);padding:9px 16px;border-radius:8px;border:1px solid rgba(90,174,240,.3);font-size:13px;cursor:pointer">⚡ Enrich + Build</button>
     <button onclick="fillPhones()" style="background:var(--teal2);color:var(--teal);padding:9px 16px;border-radius:8px;border:1px solid rgba(62,207,178,.3);font-size:13px;cursor:pointer">📞 Find Missing Phones</button>
+    <button onclick="showAddProspectModal()" style="background:var(--violet2);color:var(--violet);padding:9px 16px;border-radius:8px;border:1px solid rgba(139,110,245,.3);font-size:13px;cursor:pointer">➕ Add Prospect</button>
+    <select id="call-mode" onchange="onCallModeChange(this.value)" style="background:var(--g3);color:var(--ink);padding:9px 12px;border-radius:8px;border:1px solid var(--rim2);font-size:13px;cursor:pointer">
+      <option value="manual">📲 Manual (I call)</option>
+      <option value="ai_landline">🤖 AI Call (landline)</option>
+    </select>
+    <span id="call-mode-note" style="color:var(--ink3);font-size:12px">Manual mode active</span>
     <select id="filter-priority" onchange="loadProspects()" style="background:var(--g3);color:var(--ink);padding:9px 12px;border-radius:8px;border:1px solid var(--rim2);font-size:13px;cursor:pointer">
-      <option value="HAS_PHONE" selected>📞 Has Phone (all)</option>
-      <option value="">All (including no-phone)</option>
+      <option value="" selected>All (including no-phone)</option>
+      <option value="HAS_PHONE">📞 Has Phone (all)</option>
       <option value="HOT">🔥 HOT only</option>
       <option value="WARM">🌤 WARM only</option>
       <option value="COLD">❄ COLD only</option>
@@ -432,20 +442,50 @@ body{display:grid;grid-template-columns:56px 1fr}
   @keyframes bar3{0%,100%{height:20px}50%{height:4px}}
   </style>
 
-  <!-- AUTO-CALL BAR -->
+  <!-- POWER-DIAL BAR (YOU CALL) -->
   <div id="autocall-bar" style="display:none;background:var(--g2);border:1px solid var(--rim2);border-radius:12px;padding:16px 20px;margin-bottom:16px">
     <div style="display:flex;align-items:center;gap:14px;flex-wrap:wrap">
       <div style="flex:1">
-        <div style="font-size:13px;font-weight:500;color:var(--ink);margin-bottom:4px">🤖 Auto-Call Running</div>
-        <div id="autocall-status" style="font-size:12px;color:var(--ink3)">Starting...</div>
+        <div style="font-size:13px;font-weight:500;color:var(--ink);margin-bottom:4px">📞 Power Dial Session (You Call)</div>
+        <div id="autocall-status" style="font-size:12px;color:var(--ink3)">Ready...</div>
       </div>
       <div style="display:flex;align-items:center;gap:8px">
         <div id="autocall-progress" style="font-family:'IBM Plex Mono',monospace;font-size:13px;color:var(--gold)">0 / 0</div>
+        <button onclick="dialCurrentLead()" style="background:var(--ember);color:white;border:none;padding:7px 14px;border-radius:8px;font-size:12px;cursor:pointer;font-weight:600">📲 Dial</button>
+        <button onclick="nextDialLead()" style="background:var(--sky2);color:var(--sky);border:1px solid var(--sky);padding:7px 14px;border-radius:8px;font-size:12px;cursor:pointer;font-weight:600">⏭ Next</button>
         <button onclick="stopAutocall()" style="background:var(--rose2);color:var(--rose);border:1px solid var(--rose);padding:7px 14px;border-radius:8px;font-size:12px;cursor:pointer;font-weight:600">⏹ Stop</button>
       </div>
     </div>
     <div style="margin-top:10px;background:var(--g1);border-radius:6px;height:4px;overflow:hidden">
       <div id="autocall-fill" style="height:100%;background:var(--gold);width:0%;transition:width .4s"></div>
+    </div>
+    <div style="margin-top:12px;background:var(--g1);border:1px solid var(--rim);border-radius:10px;padding:12px">
+      <div style="font-size:11px;color:var(--ink3);margin-bottom:6px">Current Lead</div>
+      <div id="manual-dial-lead" style="font-size:13px;color:var(--ink);font-weight:500;margin-bottom:6px">—</div>
+      <div id="manual-dial-itch" style="font-size:12px;color:var(--ink2);line-height:1.5;margin-bottom:10px">Lead issue summary will appear here.</div>
+      <div style="display:flex;gap:8px;align-items:center;margin-bottom:8px;flex-wrap:wrap">
+        <label for="pitch-template" style="font-size:11px;color:var(--ink3)">Pitch style</label>
+        <select id="pitch-template" onchange="setPitchTemplate(this.value)" style="background:var(--g3);color:var(--ink);padding:6px 8px;border-radius:8px;border:1px solid var(--rim2);font-size:12px;cursor:pointer">
+          <option value="consultative">Consultative</option>
+          <option value="direct">Direct</option>
+          <option value="short">Short opener</option>
+        </select>
+      </div>
+      <div style="display:flex;gap:8px;align-items:center;margin-bottom:8px;flex-wrap:wrap">
+        <button onclick="copyCurrentDialNumber()" style="background:var(--g3);color:var(--ink2);border:1px solid var(--rim2);padding:6px 10px;border-radius:8px;font-size:11px;cursor:pointer">Copy Number</button>
+        <button onclick="copyCurrentScript()" style="background:var(--g3);color:var(--ink2);border:1px solid var(--rim2);padding:6px 10px;border-radius:8px;font-size:11px;cursor:pointer">Copy Script</button>
+      </div>
+      <textarea id="manual-script-text" readonly style="width:100%;min-height:120px;background:var(--g3);color:var(--ink2);border:1px solid var(--rim2);border-radius:8px;padding:10px;font-size:12px;line-height:1.6;resize:vertical"></textarea>
+      <div style="margin-top:10px;border-top:1px solid var(--rim);padding-top:10px">
+        <div style="font-size:11px;color:var(--ink3);margin-bottom:6px">Real-time assist: quick rebuttals</div>
+        <div style="display:flex;gap:6px;flex-wrap:wrap;margin-bottom:8px">
+          <button onclick="applyRebuttal('too_expensive')" style="background:var(--g3);color:var(--ink2);border:1px solid var(--rim2);padding:5px 8px;border-radius:8px;font-size:11px;cursor:pointer">Too expensive</button>
+          <button onclick="applyRebuttal('not_interested')" style="background:var(--g3);color:var(--ink2);border:1px solid var(--rim2);padding:5px 8px;border-radius:8px;font-size:11px;cursor:pointer">Not interested</button>
+          <button onclick="applyRebuttal('already_have_service')" style="background:var(--g3);color:var(--ink2);border:1px solid var(--rim2);padding:5px 8px;border-radius:8px;font-size:11px;cursor:pointer">Already have service</button>
+          <button onclick="applyRebuttal('send_info')" style="background:var(--g3);color:var(--ink2);border:1px solid var(--rim2);padding:5px 8px;border-radius:8px;font-size:11px;cursor:pointer">Send info</button>
+        </div>
+        <textarea id="rebuttal-text" readonly style="width:100%;min-height:76px;background:var(--g3);color:var(--ink2);border:1px solid var(--rim2);border-radius:8px;padding:10px;font-size:12px;line-height:1.6;resize:vertical" placeholder="Tap an objection button to see what to say next..."></textarea>
+      </div>
     </div>
   </div>
 
@@ -453,12 +493,75 @@ body{display:grid;grid-template-columns:56px 1fr}
     <div style="color:var(--ink3);font-size:13px">Loading prospects...</div>
   </div>
 
-  <!-- START AUTO-CALL BUTTON (bottom, sticky feel) -->
+  <!-- START POWER-DIAL BUTTON (bottom, sticky feel) -->
   <div id="start-autocall-wrap" style="position:sticky;bottom:20px;margin-top:20px;display:none">
     <button onclick="startAutocall()" id="btn-start-autocall"
       style="width:100%;background:var(--ember);color:white;border:none;padding:14px;border-radius:10px;font-size:14px;font-weight:600;cursor:pointer;box-shadow:0 4px 20px rgba(240,144,68,.4)">
-      📞 Start Auto-Call — Eric Dials Everyone
+      📞 Start Power Dial Session — You Call
     </button>
+  </div>
+
+  <!-- ADD PROSPECT MODAL -->
+  <div id="add-prospect-modal" style="display:none;position:fixed;top:0;left:0;right:0;bottom:0;background:rgba(0,0,0,0.6);z-index:1000;align-items:center;justify-content:center">
+    <div style="background:var(--g1);border:1px solid var(--rim2);border-radius:16px;padding:28px;max-width:500px;width:90%;max-height:90vh;overflow-y:auto;box-shadow:0 20px 60px rgba(0,0,0,0.8)">
+      <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:20px">
+        <h2 style="font-family:'Instrument Serif',serif;font-size:28px;color:var(--ink);font-style:italic">Add Prospect</h2>
+        <button onclick="closeAddProspectModal()" style="background:transparent;border:none;color:var(--ink3);font-size:24px;cursor:pointer">✕</button>
+      </div>
+      <form id="add-prospect-form" onsubmit="submitAddProspect(event)" style="display:flex;flex-direction:column;gap:14px">
+        <div>
+          <label style="display:block;font-family:'IBM Plex Mono',monospace;font-size:10px;letter-spacing:.12em;text-transform:uppercase;color:var(--ink3);margin-bottom:6px">Business Name *</label>
+          <input id="add-prospect-name" type="text" placeholder="e.g., ABC Plumbing" required style="width:100%;background:var(--g2);color:var(--ink);padding:10px 12px;border:1px solid var(--rim2);border-radius:8px;font-size:13px;outline:none" />
+        </div>
+        <div>
+          <label style="display:block;font-family:'IBM Plex Mono',monospace;font-size:10px;letter-spacing:.12em;text-transform:uppercase;color:var(--ink3);margin-bottom:6px">Location *</label>
+          <input id="add-prospect-location" type="text" placeholder="e.g., Houston TX" required style="width:100%;background:var(--g2);color:var(--ink);padding:10px 12px;border:1px solid var(--rim2);border-radius:8px;font-size:13px;outline:none" />
+        </div>
+        <div>
+          <label style="display:block;font-family:'IBM Plex Mono',monospace;font-size:10px;letter-spacing:.12em;text-transform:uppercase;color:var(--ink3);margin-bottom:6px">Phone</label>
+          <input id="add-prospect-phone" type="tel" placeholder="e.g., (713) 555-1234" style="width:100%;background:var(--g2);color:var(--ink);padding:10px 12px;border:1px solid var(--rim2);border-radius:8px;font-size:13px;outline:none" />
+        </div>
+        <div>
+          <label style="display:block;font-family:'IBM Plex Mono',monospace;font-size:10px;letter-spacing:.12em;text-transform:uppercase;color:var(--ink3);margin-bottom:6px">Email</label>
+          <input id="add-prospect-email" type="email" placeholder="e.g., info@abcplumbing.com" style="width:100%;background:var(--g2);color:var(--ink);padding:10px 12px;border:1px solid var(--rim2);border-radius:8px;font-size:13px;outline:none" />
+        </div>
+        <div>
+          <label style="display:block;font-family:'IBM Plex Mono',monospace;font-size:10px;letter-spacing:.12em;text-transform:uppercase;color:var(--ink3);margin-bottom:6px">Website</label>
+          <input id="add-prospect-website" type="url" placeholder="e.g., https://abcplumbing.com" style="width:100%;background:var(--g2);color:var(--ink);padding:10px 12px;border:1px solid var(--rim2);border-radius:8px;font-size:13px;outline:none" />
+        </div>
+        <div>
+          <label style="display:block;font-family:'IBM Plex Mono',monospace;font-size:10px;letter-spacing:.12em;text-transform:uppercase;color:var(--ink3);margin-bottom:6px">Niche</label>
+          <select id="add-prospect-niche" style="width:100%;background:var(--g2);color:var(--ink);padding:10px 12px;border:1px solid var(--rim2);border-radius:8px;font-size:13px;outline:none;cursor:pointer">
+            <option value="">Select niche...</option>
+            <option value="plumbing">Plumbing</option>
+            <option value="electrical">Electrical</option>
+            <option value="hvac">HVAC</option>
+            <option value="locksmith">Locksmith</option>
+            <option value="roofing">Roofing</option>
+            <option value="landscaping">Landscaping</option>
+            <option value="cleaning">Cleaning</option>
+            <option value="pest_control">Pest Control</option>
+            <option value="general_service">General Service</option>
+          </select>
+        </div>
+        <div>
+          <label style="display:block;font-family:'IBM Plex Mono',monospace;font-size:10px;letter-spacing:.12em;text-transform:uppercase;color:var(--ink3);margin-bottom:6px">Priority</label>
+          <select id="add-prospect-priority" style="width:100%;background:var(--g2);color:var(--ink);padding:10px 12px;border:1px solid var(--rim2);border-radius:8px;font-size:13px;outline:none;cursor:pointer">
+            <option value="WARM" selected>WARM 🌤</option>
+            <option value="HOT">HOT 🔥</option>
+            <option value="COLD">COLD ❄</option>
+          </select>
+        </div>
+        <div>
+          <label style="display:block;font-family:'IBM Plex Mono',monospace;font-size:10px;letter-spacing:.12em;text-transform:uppercase;color:var(--ink3);margin-bottom:6px">Notes</label>
+          <textarea id="add-prospect-notes" placeholder="Add any notes about this prospect..." style="width:100%;background:var(--g2);color:var(--ink);padding:10px 12px;border:1px solid var(--rim2);border-radius:8px;font-size:13px;outline:none;min-height:80px;font-family:'DM Sans',sans-serif;resize:vertical"></textarea>
+        </div>
+        <div style="display:flex;gap:10px;margin-top:10px">
+          <button type="submit" style="flex:1;background:var(--violet);color:white;border:none;padding:12px;border-radius:8px;font-size:13px;font-weight:600;cursor:pointer">✓ Add Prospect</button>
+          <button type="button" onclick="closeAddProspectModal()" style="flex:1;background:var(--g2);color:var(--ink3);border:1px solid var(--rim2);padding:12px;border-radius:8px;font-size:13px;cursor:pointer">Cancel</button>
+        </div>
+      </form>
+    </div>
   </div>
 </div></div>
 
@@ -581,7 +684,55 @@ let autocallQueue=[];
 let autocallRunning=false;
 let autocallIndex=0;
 let currentProspectMode='browse';
-let currentCallListOptions={count:20,priority:''};
+let callMode='manual';
+let currentPitchTemplate='consultative';
+let currentDialProspect=null;
+
+function isProspectDialBlocked(p){
+  const dncStatus=String(p?.dnc_status||'').toLowerCase();
+  const nextAction=String(p?.next_action||'').toLowerCase();
+  return Boolean(
+    p?.opt_out_at ||
+    nextAction==='do_not_call' ||
+    ['internal_opt_out','dnc','revoked','blocked'].includes(dncStatus)
+  );
+}
+
+function getDialButtonLabel(){
+  return callMode==='ai_landline' ? '🤖 AI Call' : '📲 Dial (You)';
+}
+
+function updateCallModeUI(){
+  const sel=document.getElementById('call-mode');
+  const note=document.getElementById('call-mode-note');
+  if(sel)sel.value=callMode;
+  if(note){
+    note.textContent=callMode==='ai_landline'
+      ? 'AI landline mode active'
+      : 'Manual mode active';
+  }
+  const startBtn=document.getElementById('btn-start-autocall');
+  if(startBtn){
+    startBtn.textContent=callMode==='ai_landline'
+      ? '☎ Start AI Call Session — Landlines'
+      : '📞 Start Power Dial Session — You Call';
+  }
+}
+
+function onCallModeChange(mode){
+  callMode=(mode==='ai_landline'?'ai_landline':'manual');
+  try{localStorage.setItem('prospectCallMode',callMode);}catch(e){}
+  updateCallModeUI();
+  refreshProspectView();
+}
+
+function openProspectsFromStat(mode){
+  const pri=document.getElementById('filter-priority');
+  const callState=document.getElementById('filter-call-status');
+  if(callState)callState.value='';
+  if(pri)pri.value=(mode==='hot'?'HOT':'');
+  nav('prospects',document.querySelector('.ri[onclick*="prospects"]'));
+}
 
 function applyCallStatusFilter(data){
   const filter=document.getElementById('filter-call-status')?.value||'';
@@ -604,7 +755,9 @@ function renderProspects(data,countLabel=''){
   const list=document.getElementById('prospect-list');
   if(!list)return;
   const withPhone=data.filter(p=>p.phone);
-  document.getElementById('prospect-count').textContent=countLabel||`${data.length} total · ${withPhone.length} ready to call`;
+  const hidden=Math.max(0,(allProspects.length||0)-data.length);
+  const hiddenNote=hidden?` · ${hidden} hidden by filters`:'';
+  document.getElementById('prospect-count').textContent=countLabel||`${data.length} visible · ${withPhone.length} ready to call${hiddenNote}`;
   document.getElementById('s-prospects').textContent=allProspects.length||'0';
   document.getElementById('s-hot').textContent=allProspects.filter(p=>p.priority==='HOT').length||'0';
   const pip=document.getElementById('pip-prospects');
@@ -648,7 +801,6 @@ async function buildCallList(btn){
   const count=Math.max(1,Math.min(parseInt(countInput?.value||'20',10)||20,100));
   const priority=(priorityInput?.value||'').trim();
   currentProspectMode='call-list';
-  currentCallListOptions={count,priority};
   const list=document.getElementById('prospect-list');
   if(!list)return;
   if(btn){btn.disabled=true;btn.textContent='Building...';}
@@ -659,6 +811,21 @@ async function buildCallList(btn){
     const r=await fetch(`${API}/prospects/call-list?${params.toString()}`);
     const d=await r.json();
     let items=Array.isArray(d.items)?d.items:[];
+    if(!items.length){
+      // Fallback: derive a call-ready list from raw prospects when strict list is empty.
+      const raw=await fetch(`${API}/prospects?limit=500`).then(x=>x.ok?x.json():[]);
+      const terms=['24/7','24 hour','emergency','urgent','after hours','dispatch','same day','call now','available now','weekend'];
+      items=(Array.isArray(raw)?raw:[])
+        .filter(p=>String(p.phone||'').trim())
+        .map(p=>{
+          const blob=((p.business_name||'')+' '+(p.niche||'')+' '+(p.research_notes||'')+' '+(p.notes||'')).toLowerCase();
+          const score=terms.reduce((acc,t)=>acc+(blob.includes(t)?1:0),0);
+          return {...p,__score:score};
+        })
+        .sort((a,b)=>(b.__score-a.__score))
+        .slice(0,count);
+      if(items.length)toast('Using best-available call list fallback','info');
+    }
     items=applyCallStatusFilter(items);
     allProspects=items;
     renderProspects(items, `${d.count||items.length} selected · ${d.total_with_phone||items.length} with phones in memory`);
@@ -695,6 +862,7 @@ function buildProspectCard(p){
   const pe=p.priority==='HOT'?'🔥':p.priority==='WARM'?'🌤':'❄';
   const phone=p.phone||'';
   const cleanPhone=phone.replace(/\D/g,'');
+  const dialBlocked=isProspectDialBlocked(p);
   const card=document.createElement('div');
   card.id='card-'+p.id;
   
@@ -743,6 +911,9 @@ function buildProspectCard(p){
     }[nextAction] || '—';
     actionBadge = `<span style="font-size:10px;font-weight:600;background:${actionColor}22;color:${actionColor};padding:2px 8px;border-radius:4px">${actionEmoji} ${nextAction}</span>`;
   }
+  if(dialBlocked&&!actionBadge){
+    actionBadge = `<span style="font-size:10px;font-weight:600;background:#50507a22;color:#9090b8;padding:2px 8px;border-radius:4px">🛑 blocked</span>`;
+  }
   
   const callSummary = p.call_result_summary ? `<div style="font-size:11px;color:var(--ink2);margin-bottom:8px">💬 "${p.call_result_summary}"</div>` : '';
   const callbackStatus = p.callback_due_at ? `<div style="font-size:11px;color:var(--gold);margin-bottom:8px">📅 Callback: ${new Date(p.callback_due_at).toLocaleDateString()}</div>` : '';
@@ -763,7 +934,8 @@ function buildProspectCard(p){
       ${callbackStatus}
     </div>
     <div style="display:flex;flex-direction:column;gap:6px;min-width:80px">
-      ${cleanPhone?`<button onclick="callProspect('${cleanPhone}','${escHtml(p.business_name)}','${p.location||''}','${p.niche||''}',this)" style="background:var(--ember);color:white;border:none;padding:8px 12px;border-radius:8px;font-size:12px;font-weight:600;cursor:pointer">📞 Call</button>`:''}
+      ${cleanPhone&&!dialBlocked?`<button onclick="dialProspectByMode('${cleanPhone}','${escHtml(p.business_name)}','${p.location||''}','${p.niche||''}',this)" style="background:var(--ember);color:white;border:none;padding:8px 12px;border-radius:8px;font-size:12px;font-weight:600;cursor:pointer">${getDialButtonLabel()}</button>`:''}
+      ${cleanPhone&&dialBlocked?`<div style="background:var(--g3);color:var(--ink3);border:1px solid var(--rim2);padding:8px 12px;border-radius:8px;font-size:11px;text-align:center">DNC / Opt-out</div>`:''}
       ${p.maps_url?`<a href="${p.maps_url}" target="_blank" style="background:var(--g3);color:var(--ink2);border:1px solid var(--rim2);padding:6px 10px;border-radius:8px;font-size:11px;text-align:center;text-decoration:none">Maps ↗</a>`:''}
       <button onclick="deleteProspect(${p.id},this)" style="background:var(--rose2);color:var(--rose);border:1px solid transparent;padding:6px 10px;border-radius:8px;font-size:11px;cursor:pointer">✕ Remove</button>
     </div>`;
@@ -781,6 +953,61 @@ async function deleteProspect(id,btn){
 }
 
 function tryParseJSON(v){try{return typeof v==='string'?JSON.parse(v):v;}catch{return null;}}
+function showAddProspectModal(){
+  const modal=document.getElementById('add-prospect-modal');
+  if(modal)modal.style.display='flex';
+  document.getElementById('add-prospect-name').focus();
+}
+
+function closeAddProspectModal(){
+  const modal=document.getElementById('add-prospect-modal');
+  if(modal)modal.style.display='none';
+  document.getElementById('add-prospect-form')?.reset();
+}
+
+async function submitAddProspect(e){
+  e.preventDefault();
+  const name=document.getElementById('add-prospect-name').value.trim();
+  const location=document.getElementById('add-prospect-location').value.trim();
+  const phone=document.getElementById('add-prospect-phone').value.trim();
+  const email=document.getElementById('add-prospect-email').value.trim();
+  const website=document.getElementById('add-prospect-website').value.trim();
+  const niche=document.getElementById('add-prospect-niche').value.trim();
+  const priority=document.getElementById('add-prospect-priority').value.trim();
+  const notes=document.getElementById('add-prospect-notes').value.trim();
+  
+  if(!name||!location){
+    toast('Business name and location are required','error');
+    return;
+  }
+  
+  const body={
+    business_name:name,
+    location:location,
+    priority:priority||'WARM',
+    ...(phone&&{phone}),
+    ...(email&&{email}),
+    ...(website&&{website}),
+    ...(niche&&{niche}),
+    ...(notes&&{notes})
+  };
+  
+  try{
+    const r=await fetch(`${API}/prospects`,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(body)});
+    const d=await r.json();
+    if(d.created){
+      toast(`✓ Added: ${name}`,'success');
+      closeAddProspectModal();
+      allProspects=[];
+      await loadProspects();
+    }else{
+      toast(`Could not add prospect: ${d.reason}`,'error');
+    }
+  }catch(e){
+    toast(`Error: ${e.message}`,'error');
+  }
+}
+
 function escHtml(s){return (s||'').replace(/'/g,"\\'")}
 function escText(s){return (s||'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');}
 
@@ -885,36 +1112,138 @@ async function cancelScheduledEvent(id,btn){
   }catch(e){}
 }
 
-async function callProspect(phone,name,city,niche,btn){
-  if(!btn)btn=event?.target;
+function buildPitchScript(p){
+  const business = p?.business_name || 'your business';
+  const city = p?.location || 'your area';
+  const niche = p?.niche || 'service business';
+  const itch = ((p?.research_notes || '') + ' ' + (p?.notes || '')).trim().replace(/\s+/g,' ').slice(0,220) ||
+    'I noticed you are likely handling urgent or after-hours calls where missed calls can turn into lost jobs.';
+  if(currentPitchTemplate==='short'){
+    return `Hi, this is Katy. Quick one for ${business}: are missed calls after-hours costing booked jobs?\n\nI noticed: ${itch}\n\nIf useful, I can set up an AI answering flow so every inbound call gets handled immediately.`;
+  }
+  if(currentPitchTemplate==='direct'){
+    return `Hi, this is Katy. I help ${niche} businesses stop losing inbound calls.\n\nFor ${business} in ${city}, I noticed: ${itch}\n\nIf calls are missed when your team is busy, I can plug in AI call handling fast and capture those jobs.`;
+  }
+  return `Hi, this is Katy. Is the owner available for 30 seconds?\n\nI am calling because I noticed ${business} in ${city} may be dealing with missed-call pressure around ${niche} demand.\n\nWhat I saw: ${itch}\n\nQuick question: when calls come in after-hours or while the team is on jobs, do those get answered live every time?\n\nIf not, I can set up an AI answering flow so every caller gets an immediate response and qualified calls are captured instead of lost.`;
+}
+
+function setPitchTemplate(template){
+  currentPitchTemplate=(template==='direct'||template==='short')?template:'consultative';
+  if(currentDialProspect)setCurrentLeadScript(currentDialProspect);
+}
+
+function applyRebuttal(kind){
+  const p=currentDialProspect||{};
+  const business=p.business_name||'your team';
+  const responseMap={
+    too_expensive:`Totally fair. That is exactly why I break it into tiers. Starter is $500 to set up and $97 a month for missed-call coverage and FAQs. Standard is $1,000 and $197 if you also want booking and hot lead transfer.\nWould it help if I showed which tier fits ${business} best so you do not overbuy?`,
+    not_interested:`Understood. Quick check before I let you go: if a call comes in while your crew is on jobs, is that answered every time today?\nIf not, that is exactly where this helps.`,
+    already_have_service:`That is good. We usually layer in where current coverage drops off, like after-hours or overflow.\nAre you seeing any missed-call gaps at peak times?`,
+    send_info:`Absolutely, happy to. Before I send, what matters more for you: after-hours coverage, overflow, or faster follow-up?\nI will tailor it so it is actually useful.`
+  };
+  const box=document.getElementById('rebuttal-text');
+  if(box)box.value=responseMap[kind]||'';
+}
+
+function setCurrentLeadScript(p){
+  const leadEl=document.getElementById('manual-dial-lead');
+  const itchEl=document.getElementById('manual-dial-itch');
+  const scriptEl=document.getElementById('manual-script-text');
+  if(!leadEl||!itchEl||!scriptEl)return;
+  const phone=(p?.phone||'').toString();
+  currentDialProspect=p||null;
+  leadEl.textContent=`${p?.business_name||'Unknown'} ${phone?`• ${phone}`:''}`;
+  itchEl.textContent=((p?.research_notes||'')+' '+(p?.notes||'')).trim().replace(/\s+/g,' ').slice(0,240) || 'No specific itch captured yet for this lead.';
+  scriptEl.value=buildPitchScript(p||{});
+}
+
+async function copyCurrentScript(){
+  const txt=document.getElementById('manual-script-text')?.value||'';
+  if(!txt){toast('No script to copy','warn');return;}
+  try{await navigator.clipboard.writeText(txt);toast('Script copied','success');}catch(e){toast('Could not copy script','error');}
+}
+
+async function copyCurrentDialNumber(){
+  const idx=Math.min(autocallIndex, autocallQueue.length-1);
+  const p=autocallQueue[idx];
+  if(!p?.phone){toast('No number to copy','warn');return;}
+  try{await navigator.clipboard.writeText(p.phone);toast('Number copied','success');}catch(e){toast('Could not copy number','error');}
+}
+
+async function manualDialProspect(phone,name,city,niche,btn){
+  const normalized=String(phone||'').replace(/\D/g,'');
+  if(!normalized){toast('Missing phone number','warn');return false;}
+  const dialNumber=normalized.length===10?`+1${normalized}`:`+${normalized}`;
+  const matched=allProspects.find(p=>String(p.phone||'').replace(/\D/g,'')===normalized)
+    || {business_name:name,location:city,niche,phone:dialNumber,research_notes:'',notes:''};
+  setCurrentLeadScript(matched);
+  if(btn){btn.disabled=true;btn.textContent='Opening...';}
+  try{
+    window.location.href=`tel:${dialNumber}`;
+    await navigator.clipboard.writeText(dialNumber);
+    toast(`Dialer opened for ${name}. Number copied too.`, 'info');
+  }catch(e){
+    toast(`Could not open dialer. Number copied: ${dialNumber}`, 'warn');
+  }
+  if(btn){
+    btn.textContent='📲 Dial (You)';
+    btn.disabled=false;
+  }
+  return true;
+}
+
+async function aiCallProspect(phone,name,city,niche,btn){
+  const normalized=String(phone||'').replace(/\D/g,'');
+  const fullPhone=normalized.length===10?`+1${normalized}`:`+${normalized}`;
   if(btn){btn.disabled=true;btn.textContent='Dialing...';}
   try{
     const r=await fetch(`${API}/vapi/call`,{
       method:'POST',headers:{'Content-Type':'application/json'},
-      body:JSON.stringify({prospect_phone:'+1'+phone,business_name:name,city,business_type:niche,service_need:'missed_call_answering'})
+      body:JSON.stringify({
+        prospect_phone:fullPhone,
+        business_name:name,
+        city,
+        business_type:niche,
+        service_need:'missed_call_answering',
+        target_line_type:'landline'
+      })
     });
     const d=await r.json();
-    if(btn){
-      btn.textContent=d.id?'✓ Called':'✗ Error';
-      btn.style.background=d.id?'#44e888':'#f0607a';
-      setTimeout(()=>{if(btn){btn.disabled=false;btn.textContent='📞 Call';btn.style.background='var(--ember)';}},5000);
+    if(d?.blocked){
+      toast(d.reason||'AI outbound calling is disabled','warn');
+      if(btn){btn.disabled=false;btn.textContent=getDialButtonLabel();}
+      return false;
     }
-    if(d.id){
-      toast(`Call started for ${name}`,'success');
-      setTimeout(()=>{refreshProspectView();},10000);
-      setTimeout(()=>{refreshProspectView();},25000);
+    if(d?.id){
+      toast(`AI call queued for ${name}`,'success');
+      if(btn){btn.textContent='✓ Queued';btn.style.background='#44e888';}
+      setTimeout(()=>{
+        if(btn){btn.disabled=false;btn.textContent=getDialButtonLabel();btn.style.background='var(--ember)';}
+      },4000);
+      return true;
     }
-    return !!d.id;
-  }catch(e){if(btn){btn.textContent='✗ Error';btn.disabled=false;}return false;}
+    toast('AI call failed for this number','error');
+    if(btn){btn.disabled=false;btn.textContent=getDialButtonLabel();}
+    return false;
+  }catch(e){
+    toast('Could not reach AI calling endpoint','error');
+    if(btn){btn.disabled=false;btn.textContent=getDialButtonLabel();}
+    return false;
+  }
 }
 
-// ── AUTO-CALL QUEUE ──────────────────────────────────────────────────────────
+async function dialProspectByMode(phone,name,city,niche,btn){
+  if(callMode==='ai_landline')return aiCallProspect(phone,name,city,niche,btn);
+  return manualDialProspect(phone,name,city,niche,btn);
+}
+
+// ── POWER-DIAL QUEUE (YOU CALL) ─────────────────────────────────────────────
 async function startAutocall(){
   // Reload prospects fresh before starting so we always have data
   if(!allProspects.length){
     await loadProspects();
   }
-  const visible=allProspects.filter(p=>p.phone&&p.phone.trim());
+  const visible=allProspects.filter(p=>p.phone&&p.phone.trim()&&!isProspectDialBlocked(p));
   autocallQueue=visible.map(p=>({
     phone:p.phone.replace(/\D/g,''),
     name:p.business_name,
@@ -930,41 +1259,47 @@ async function startAutocall(){
   runNextCall();
 }
 
-async function runNextCall(){
+function runNextCall(){
   if(!autocallRunning||autocallIndex>=autocallQueue.length){
     stopAutocall(true);return;
   }
   const p=autocallQueue[autocallIndex];
   const total=autocallQueue.length;
   document.getElementById('autocall-progress').textContent=`${autocallIndex+1} / ${total}`;
-  document.getElementById('autocall-fill').style.width=`${Math.round((autocallIndex/total)*100)}%`;
-  document.getElementById('autocall-status').textContent=`Calling ${p.name} — ${p.phone}`;
+  document.getElementById('autocall-fill').style.width=`${Math.round(((autocallIndex+1)/total)*100)}%`;
+  document.getElementById('autocall-status').textContent=`Ready: ${p.name} — ${p.phone}`;
   // Highlight current card
   document.querySelectorAll('[id^=card-]').forEach(c=>c.style.borderColor='');
   const cur=document.getElementById('card-'+p.id);
   if(cur){cur.style.borderColor='var(--ember)';cur.scrollIntoView({behavior:'smooth',block:'nearest'});}
-  await callProspect(p.phone,p.name,p.city,p.niche,null);
+  const prospect=allProspects.find(x=>x.id===p.id) || {
+    business_name:p.name,location:p.city,niche:p.niche,phone:p.phone,research_notes:'',notes:''
+  };
+  setCurrentLeadScript(prospect);
+}
+
+async function dialCurrentLead(){
+  if(!autocallRunning||autocallIndex>=autocallQueue.length){return;}
+  const p=autocallQueue[autocallIndex];
+  await dialProspectByMode(p.phone,p.name,p.city,p.niche,null);
+}
+
+function nextDialLead(){
+  if(!autocallRunning)return;
   autocallIndex++;
-  // Wait 90 seconds between calls so VAPI isn't overwhelmed
-  if(autocallRunning&&autocallIndex<autocallQueue.length){
-    let secs=90;
-    const tick=setInterval(()=>{
-      if(!autocallRunning){clearInterval(tick);return;}
-      secs--;
-      const next=autocallQueue[autocallIndex];
-      document.getElementById('autocall-status').textContent=`Next: ${next?.name} in ${secs}s...`;
-      if(secs<=0){clearInterval(tick);runNextCall();}
-    },1000);
-  }else{
-    runNextCall();
-  }
+  runNextCall();
 }
 
 function stopAutocall(done=false){
   autocallRunning=false;
   document.getElementById('autocall-bar').style.display='none';
   document.getElementById('start-autocall-wrap').style.display='block';
-  document.getElementById('btn-start-autocall').textContent=done?'✓ All Called — Restart?':'📞 Start Auto-Call — Eric Dials Everyone';
+  const start=document.getElementById('btn-start-autocall');
+  if(start){
+    start.textContent=done
+      ? '✓ Session Complete — Restart?'
+      : (callMode==='ai_landline' ? '☎ Start AI Call Session — Landlines' : '📞 Start Power Dial Session — You Call');
+  }
   document.querySelectorAll('[id^=card-]').forEach(c=>c.style.borderColor='');
 }
 
@@ -1164,6 +1499,12 @@ async function sendMsg(){const inp=document.getElementById('chat-in');const who=
 function quick(w,m){document.getElementById('chat-who').value=w;document.getElementById('chat-in').value=m;sendMsg();}
 async function runGBP(niche,location){const btn=event.target;btn.disabled=true;btn.textContent='running...';addRow({id:Date.now(),timestamp:new Date().toISOString(),agent:'lead_gen',type:'action',content:`Starting prospect mission: ${niche} in ${location}`});try{const r=await fetch(`${API}/task`,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({agent:'lead_gen',task:`Find and save 15 ${niche} prospects in ${location} for Missed-Call-Revenue outreach.`})});await r.json();addRow({id:Date.now(),timestamp:new Date().toISOString(),agent:'lead_gen',type:'result',content:`Prospect mission complete. Check Prospects and Outbox.`});nav('prospects',document.querySelector('.ri[onclick*="prospects"]'));}catch(e){addRow({id:Date.now(),timestamp:new Date().toISOString(),agent:'system',type:'result',content:'⚠️ Mission error — is orchestrator running?'});}btn.disabled=false;btn.textContent='run done ✓';}
 async function checkSess(){try{const r=await fetch(`${API}/browser/sessions`);const d=await r.json();if(d.linkedin){document.getElementById('li-st').textContent='connected';document.getElementById('li-st').className='sess-status c-teal';document.getElementById('li-btn').className='sess-btn ok';document.getElementById('li-btn').textContent='connected ✓';}if(d.facebook){document.getElementById('fb-st').textContent='connected';document.getElementById('fb-st').className='sess-status c-teal';document.getElementById('fb-btn').className='sess-btn ok';document.getElementById('fb-btn').textContent='connected ✓';}}catch(e){}}
+
+try{callMode=(localStorage.getItem('prospectCallMode')||'manual');}catch(e){callMode='manual';}
+if(callMode!=='ai_landline')callMode='manual';
+updateCallModeUI();
+const pt=document.getElementById('pitch-template');
+if(pt)pt.value=currentPitchTemplate;
 
 // ── LIVE CALL MONITOR ─────────────────────────────────────────────────────────
 let liveCallWs=null;

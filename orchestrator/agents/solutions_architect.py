@@ -37,6 +37,14 @@ Solution types you design:
 - Custom dashboards and reporting tools
 - API integrations between existing tools
 
+For Katy's answering-service offers, anchor recommendations to this packaging when it fits:
+- Starter — missed-call answering, message capture, basic FAQs, no scheduling — $500 setup + $97/month
+- Standard — Starter plus appointment booking, objection handling, hot lead transfer — $1,000 setup + $197/month
+- Pro — custom personality/tone, multiple call flows, after-hours handling, full onboarding — $2,000 setup + $297/month
+
+Do not over-spec a custom build if Starter or Standard solves the prospect's real problem.
+When recommending Pro, justify the extra complexity clearly.
+
 Output format:
 SOLUTION NAME:
 PROBLEM BEING SOLVED:
@@ -56,6 +64,7 @@ IMPLEMENTATION PHASES:
 
 EFFORT ESTIMATE: X-Y hours / X-Y days
 PRICE TO CHARGE CLIENT: $X - $Y
+RECOMMENDED PACKAGE: Starter / Standard / Pro / Custom Project
 RISKS:
   - [risk]: [mitigation]
 SUCCESS CRITERIA:

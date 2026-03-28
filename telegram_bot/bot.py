@@ -72,6 +72,16 @@ async def status(update: Update, context: ContextTypes.DEFAULT_TYPE):
         parse_mode='Markdown'
     )
 
+
+async def reply_plain_chunks(message, text: str, chunk_size: int = 3900):
+    """Send long text safely without Telegram Markdown entity parsing."""
+    content = str(text or "")
+    if not content:
+        await message.reply_text("No result")
+        return
+    for i in range(0, len(content), chunk_size):
+        await message.reply_text(content[i:i + chunk_size])
+
 #  Agent command factory 
 def make_cmd(agent: str, default_task: str, emoji: str):
     async def handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
@@ -80,7 +90,8 @@ def make_cmd(agent: str, default_task: str, emoji: str):
         await update.message.reply_text(f"{emoji} On it...")
         try:
             result = await run_task(agent, task)
-            await update.message.reply_text(f"{emoji} *{agent.replace('_',' ').title()}*\n\n{result[:4000]}", parse_mode='Markdown')
+            header = f"{emoji} {agent.replace('_', ' ').title()}\n\n"
+            await reply_plain_chunks(update.message, header + result)
         except Exception as e:
             await update.message.reply_text(f" Error: {e}")
     return handler

@@ -182,7 +182,39 @@ def init_db():
             call_ended_at TEXT,
             call_recording_url TEXT
         );
+
+        CREATE TABLE IF NOT EXISTS dnc_entries (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            phone_number TEXT NOT NULL UNIQUE,
+            business_name TEXT,
+            reason TEXT,
+            source TEXT DEFAULT 'internal',
+            notes TEXT,
+            created_at TEXT DEFAULT (datetime('now')),
+            updated_at TEXT DEFAULT (datetime('now'))
+        );
     """)
+
+    prospect_columns = {
+        "opt_out_at": "TEXT",
+        "opt_out_reason": "TEXT",
+        "dnc_status": "TEXT DEFAULT 'clear'",
+        "dnc_checked_at": "TEXT",
+        "dnc_source": "TEXT",
+        "ai_call_written_consent": "INTEGER DEFAULT 0",
+        "ai_call_express_consent": "INTEGER DEFAULT 0",
+        "ai_call_consent_source": "TEXT",
+        "ai_call_consent_notes": "TEXT",
+        "ai_call_consent_updated_at": "TEXT",
+    }
+    existing_columns = {
+        row["name"]
+        for row in conn.execute("PRAGMA table_info(prospects)").fetchall()
+    }
+    for column_name, column_type in prospect_columns.items():
+        if column_name not in existing_columns:
+            conn.execute(f"ALTER TABLE prospects ADD COLUMN {column_name} {column_type}")
+
     conn.commit()
     conn.close()
     print("✅ Memory database initialized")

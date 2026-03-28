@@ -1,5 +1,5 @@
 """
-Shared constants for the GBP sales pipeline.
+Shared constants for the prospecting pipeline.
 Import from here instead of duplicating across modules.
 """
 
@@ -26,9 +26,27 @@ MAX_PROSPECT_SCORE = 5.0
 # Hard niche gate for sales pipeline.
 # Any requested niche outside this allow-list will be blocked or normalized.
 ALLOWED_TARGET_NICHES = [
+    "general_service",
     "plumbers",
     "locksmiths",
     "electricians",
+    "hvac contractors",
+    "roofers",
+    "landscapers",
+    "cabinet installers",
+    "driveway renovation specialists",
+    "garage door",
+    "towing",
+    "pest control",
+    "cleaning services",
+    "painters",
+    "flooring contractors",
+    "concrete contractors",
+    "remodelers",
+    "tree services",
+    "fence contractors",
+    "pool services",
+    "junk removal",
 ]
 
-DEFAULT_TARGET_NICHE = "plumbers"
+DEFAULT_TARGET_NICHE = "general_service"

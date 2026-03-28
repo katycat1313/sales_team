@@ -16,6 +16,8 @@ import json
 import os
 import threading
 from typing import Optional
+import urllib.request
+import urllib.error
 
 # ── Config ────────────────────────────────────────────────────────────────────
 
@@ -23,6 +25,21 @@ SHEET_ID = os.getenv(
     "GOOGLE_SHEET_ID",
     "12PoYqddT3FzQAlvL871cR4kUfk3X37M_qO10oT2V65c",
 )
+
+_webapp_url_primary = os.getenv("GOOGLE_SHEETS_WEBAPP_URL", "").strip()
+_webapp_url_legacy = os.getenv("GOOGLE_SHEETS_WEBHOOK_URL", "").strip()
+_deployment_id = os.getenv("GOOGLE_SHEETS_DEPLOYMENT_ID", "").strip()
+
+if not _webapp_url_primary and _deployment_id:
+    _webapp_url_primary = f"https://script.google.com/macros/s/{_deployment_id}/exec"
+
+# Final fallback uses the deployment URL provided during setup for this workspace.
+SHEETS_WEBAPP_URL = (
+    _webapp_url_primary
+    or _webapp_url_legacy
+    or "https://script.google.com/macros/s/AKfycbzmlPEdcndwHPxMjCyamglrebBe3syEGorWj4BHMRfgegyighjOwINKhGKe7R1d4LqT/exec"
+)
+SHEETS_WEBAPP_TOKEN = os.getenv("GOOGLE_SHEETS_WEBAPP_TOKEN", "").strip()
 
 # Path to the service account credentials JSON file.
 # Resolves relative to this file's directory: orchestrator/credentials/...
@@ -40,7 +57,7 @@ COLUMNS = [
     "Phone",
     "Location",
     "Niche",
-    "GBP Score",
+    "Buyer Intent Score",
     "Priority",
     "Issues",
     "Website",
@@ -59,6 +76,91 @@ COLUMNS = [
 # Thread lock so concurrent saves don't race on the sheet client.
 _lock = threading.Lock()
 _sheet_client = None  # cached gspread worksheet
+
+
+def _prospect_payload(prospect: dict) -> dict:
+    issues = prospect.get("gbp_issues", [])
+    if isinstance(issues, str):
+        try:
+            issues = json.loads(issues)
+        except Exception:
+            issues = [issues] if issues else []
+    issues_text = "; ".join(str(i) for i in issues[:3]) if issues else ""
+
+    return {
+        "business_name": prospect.get("business_name", ""),
+        "phone": prospect.get("phone", ""),
+        "location": prospect.get("location", ""),
+        "niche": prospect.get("niche", ""),
+        # Keep compatibility with older records while supporting new sales workflow naming.
+        "buyer_intent_score": prospect.get("buyer_intent_score", prospect.get("gbp_score", "")),
+        "priority": prospect.get("priority", ""),
+        "issues": issues_text,
+        "website": prospect.get("website", ""),
+        "maps_url": prospect.get("maps_url", ""),
+        "last_call_at": prospect.get("last_call_at", ""),
+        "last_call_outcome": prospect.get("last_call_outcome", ""),
+        "call_result_summary": prospect.get("call_result_summary", ""),
+        "call_temperature": prospect.get("call_temperature", ""),
+        "objections": prospect.get("objections", ""),
+        "next_action": prospect.get("next_action", ""),
+        "callback_due_at": prospect.get("callback_due_at", ""),
+        "callback_reason": prospect.get("callback_reason", ""),
+        "callback_status": prospect.get("callback_status", ""),
+    }
+
+
+def _push_via_webapp(prospect: dict) -> bool:
+    if not SHEETS_WEBAPP_URL:
+        return False
+
+    payload = {
+        "type": "prospect_upsert",
+        "token": SHEETS_WEBAPP_TOKEN,
+        "prospect": _prospect_payload(prospect),
+    }
+    data = json.dumps(payload).encode("utf-8")
+    req = urllib.request.Request(
+        SHEETS_WEBAPP_URL,
+        data=data,
+        headers={"Content-Type": "application/json"},
+        method="POST",
+    )
+
+    try:
+        with urllib.request.urlopen(req, timeout=20) as resp:
+            body = resp.read().decode("utf-8", errors="ignore")
+            if resp.status < 200 or resp.status >= 300:
+                print(f"[Sheets] WebApp push failed HTTP {resp.status}: {body[:180]}")
+                return False
+
+            # Accept either plain "ok" or JSON {ok:true}
+            body_l = body.strip().lower()
+            if body_l in {"ok", "true", "success"}:
+                print(f"[Sheets] ✓ Added via WebApp: {prospect.get('business_name', '?')}")
+                return True
+            try:
+                parsed = json.loads(body) if body else {}
+            except Exception:
+                parsed = {}
+            ok = bool(parsed.get("ok") or parsed.get("success") or parsed.get("saved"))
+            if ok:
+                print(f"[Sheets] ✓ Added via WebApp: {prospect.get('business_name', '?')}")
+                return True
+
+            print(f"[Sheets] WebApp response not ok: {body[:180]}")
+            return False
+    except urllib.error.HTTPError as e:
+        detail = ""
+        try:
+            detail = e.read().decode("utf-8", errors="ignore")
+        except Exception:
+            detail = str(e)
+        print(f"[Sheets] WebApp HTTP error {getattr(e, 'code', '?')}: {detail[:180]}")
+        return False
+    except Exception as e:
+        print(f"[Sheets] WebApp push error: {e}")
+        return False
 
 
 def _get_worksheet():
@@ -112,40 +214,36 @@ def push_prospect_sync(prospect: dict) -> bool:
     Called from memory.py save_prospect() — runs synchronously.
     Returns True on success, False on any failure (never raises).
     """
+    # Preferred path: Apps Script WebApp endpoint.
+    if SHEETS_WEBAPP_URL and _push_via_webapp(prospect):
+        return True
+
+    # Fallback path: service account + gspread.
     creds_path = os.path.normpath(CREDS_PATH)
     if not os.path.exists(creds_path):
-        print(
-            f"[Sheets] Skipping push — credentials not found: {creds_path}"
-        )
+        print(f"[Sheets] Skipping push — credentials not found: {creds_path}")
         return False
 
-    issues = prospect.get("gbp_issues", [])
-    if isinstance(issues, str):
-        try:
-            issues = json.loads(issues)
-        except Exception:
-            issues = [issues] if issues else []
-    issues_text = "; ".join(str(i) for i in issues[:3]) if issues else ""
-
+    row_payload = _prospect_payload(prospect)
     row = [
-        prospect.get("business_name", ""),
-        prospect.get("phone", ""),
-        prospect.get("location", ""),
-        prospect.get("niche", ""),
-        prospect.get("gbp_score", ""),
-        prospect.get("priority", ""),
-        issues_text,
-        prospect.get("website", ""),
-        prospect.get("maps_url", ""),
-        prospect.get("last_call_at", ""),
-        prospect.get("last_call_outcome", ""),
-        prospect.get("call_result_summary", ""),
-        prospect.get("call_temperature", ""),
-        prospect.get("objections", ""),
-        prospect.get("next_action", ""),
-        prospect.get("callback_due_at", ""),
-        prospect.get("callback_reason", ""),
-        prospect.get("callback_status", ""),
+        row_payload.get("business_name", ""),
+        row_payload.get("phone", ""),
+        row_payload.get("location", ""),
+        row_payload.get("niche", ""),
+        row_payload.get("buyer_intent_score", ""),
+        row_payload.get("priority", ""),
+        row_payload.get("issues", ""),
+        row_payload.get("website", ""),
+        row_payload.get("maps_url", ""),
+        row_payload.get("last_call_at", ""),
+        row_payload.get("last_call_outcome", ""),
+        row_payload.get("call_result_summary", ""),
+        row_payload.get("call_temperature", ""),
+        row_payload.get("objections", ""),
+        row_payload.get("next_action", ""),
+        row_payload.get("callback_due_at", ""),
+        row_payload.get("callback_reason", ""),
+        row_payload.get("callback_status", ""),
     ]
 
     try:
@@ -157,6 +255,19 @@ def push_prospect_sync(prospect: dict) -> bool:
     except Exception as e:
         print(f"[Sheets] Push failed for {prospect.get('business_name', '?')}: {e}")
         return False
+
+
+def sheets_sync_config_status() -> dict:
+    creds_path = os.path.normpath(CREDS_PATH)
+    return {
+        "webapp_configured": bool(SHEETS_WEBAPP_URL),
+        "webapp_url": SHEETS_WEBAPP_URL,
+        "webapp_token_configured": bool(SHEETS_WEBAPP_TOKEN),
+        "gspread_sheet_id": SHEET_ID,
+        "gspread_tab": SHEET_TAB,
+        "service_account_path": creds_path,
+        "service_account_exists": os.path.exists(creds_path),
+    }
 
 
 # ── Async convenience wrapper (kept for backwards compat) ─────────────────────
