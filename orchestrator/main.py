@@ -1841,9 +1841,8 @@ async def vapi_lookup_business(body: dict):
     if hubspot_token and (phone or business_name):
         try:
             import httpx as _hx
-            _prop = 'phone' if phone else 'company'
             _val = (phone or '').replace('+1','').replace('-','').replace('(','').replace(')','').replace(' ','') if phone else business_name
-            _hs_body = {'filterGroups':[{'filters':[{'propertyName':_prop,'operator':'CONTAINS_TOKEN','value':_val}]}],'properties':['firstname','lastname','company','phone','email','city','state','jobtitle','industry','hs_lead_status']}
+            _hs_body = {'query':_val,'properties':['firstname','lastname','company','phone','email','city','state','jobtitle','industry','hs_lead_status']}
             async with _hx.AsyncClient() as _c:
                 _r = await _c.post('https://api.hubapi.com/crm/v3/objects/contacts/search',json=_hs_body,headers={'Authorization':f'Bearer {hubspot_token}'},timeout=5)
                 if _r.status_code == 200:
