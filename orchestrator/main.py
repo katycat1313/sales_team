@@ -1756,6 +1756,155 @@ async def vapi_get_prospect(body: dict):
     return {"result": json.dumps({"owner_name": "business owner", "business_name": "", "prospect_not_found": True})}
 
 
+async def _web_search_business(business_name: str, city: str = "") -> dict:
+    """
+    Fast httpx-only web lookup for a specific business.
+    Searches Google for the business and parses the knowledge panel snippet.
+    Targets: address, hours, website, services, rating. No Playwright — must complete < 3s.
+    """
+    import httpx, re
+
+    query = f"{business_name} {city}".strip()
+    url = f"https://www.google.com/search?q={query.replace(' ', '+')}&hl=en"
+    headers = {
+        "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/121.0.0.0 Safari/537.36",
+        "Accept": "text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8",
+        "Accept-Language": "en-US,en;q=0.9",
+    }
+
+    data = {}
+    try:
+        async with httpx.AsyncClient(headers=headers, follow_redirects=True, timeout=5) as client:
+            resp = await client.get(url)
+            if resp.status_code != 200:
+                return data
+            html = resp.text
+
+        # Address — appears in knowledge panel as plain text near maps
+        addr_m = re.search(r'(\d+\s+[A-Z][^,<]{3,40},\s*[A-Z][^<]{2,30},\s*[A-Z]{2}\s*\d{5})', html)
+        if addr_m:
+            data["address"] = addr_m.group(1).strip()
+
+        # Phone — US format
+        phone_m = re.search(r'\(?\d{3}\)?[\s.\-]\d{3}[\s.\-]\d{4}', html)
+        if phone_m:
+            data["phone_web"] = phone_m.group(0).strip()
+
+        # Website — look for a "Visit website" type link in the panel
+        web_m = re.search(r'href="(https?://(?!(?:www\.google|maps\.google|support\.google|accounts\.google))[^"]{8,80})"[^>]*>[^<]*(?:website|site|visit)', html, re.IGNORECASE)
+        if web_m:
+            data["website"] = web_m.group(1).strip()
+
+        # Rating
+        rating_m = re.search(r'(\d\.\d)\s*(?:stars?|★|out of 5|\()', html)
+        if rating_m:
+            data["rating"] = rating_m.group(1)
+
+        # Review count
+        rev_m = re.search(r'([\d,]+)\s+(?:Google\s+)?reviews?', html, re.IGNORECASE)
+        if rev_m:
+            data["review_count"] = rev_m.group(1).replace(",", "")
+
+        # Hours — look for "Open" / "Closed" signals with time patterns
+        hours_m = re.search(r'(?:Opens?|Closes?|Open until|Closed)\s+[·•]?\s*(\d{1,2}(?::\d{2})?\s*(?:AM|PM|am|pm))', html)
+        if hours_m:
+            data["hours_signal"] = hours_m.group(0).strip()
+
+        # Category/type — often appears near the business name in the panel
+        cat_m = re.search(r'"LocalBusiness"[^}]*"description"\s*:\s*"([^"]{10,120})"', html)
+        if not cat_m:
+            cat_m = re.search(r'data-attrid="description"[^>]*>([^<]{20,200})<', html)
+        if cat_m:
+            data["description"] = cat_m.group(1).strip()
+
+    except Exception as e:
+        pass  # Web lookup is best-effort — never block the call
+
+    return data
+
+
+@app.post("/vapi/lookup-business")
+async def vapi_lookup_business(body: dict):
+    """
+    Called by Eric in real-time when a prospect mentions their business name on an inbound call.
+    Priority order: Google Sheet > local DB > fast web search (httpx only, no Playwright).
+    Returns merged intel so Eric can personalize the conversation immediately.
+    """
+    params = body.get("message", {}).get("functionCall", {}).get("parameters", body)
+    business_name = params.get("business_name", "").strip()
+    phone = params.get("phone", "").strip()
+
+    result = {}
+
+    # 1. Local prospects DB
+    from memory.memory import get_prospects
+    prospects = get_prospects()
+    match = None
+    if phone:
+        match = next((p for p in prospects if _phones_match(p.get("phone", ""), phone)), None)
+    if not match and business_name:
+        name_lower = business_name.lower()
+        match = next((p for p in prospects if name_lower in str(p.get("business_name", "")).lower()), None)
+
+    if match:
+        issues = _parse_gbp_issues(match.get("gbp_issues", "[]"))
+        result = {
+            "business_name": match.get("business_name", ""),
+            "owner_name": match.get("owner_name", ""),
+            "city": match.get("location", ""),
+            "business_type": match.get("niche", ""),
+            "services": match.get("services", ""),
+            "website": match.get("website", ""),
+            "address": match.get("address", ""),
+            "hours": match.get("hours", ""),
+            "rating": match.get("rating", ""),
+            "review_count": match.get("review_count", ""),
+            "known_issues": issues[:3],
+            "source": "local_db",
+        }
+
+    # 2. Google Sheet (Apps Script web app) — wins over DB for any field it has
+    lookup_url = os.getenv("BUSINESS_LOOKUP_URL", "")
+    if lookup_url and (business_name or phone):
+        try:
+            import httpx
+            qs = {}
+            if business_name:
+                qs["name"] = business_name
+            if phone:
+                qs["phone"] = phone
+            async with httpx.AsyncClient() as client:
+                resp = await client.get(lookup_url, params=qs, timeout=8)
+                if resp.status_code == 200:
+                    sheet_data = resp.json()
+                    if sheet_data and sheet_data.get("found") is not False:
+                        result.update({k: v for k, v in sheet_data.items() if v})
+                        result["source"] = "google_sheet"
+        except Exception as e:
+            log_event("vapi", "warn", f"lookup-business: Sheet lookup failed: {e}")
+
+    # 3. Fast web search to fill any remaining gaps (address, hours, website, rating)
+    missing_fields = not all([result.get("address"), result.get("website"), result.get("hours")])
+    if business_name and missing_fields:
+        try:
+            web_data = await _web_search_business(business_name, result.get("city", ""))
+            # Only fill in gaps — don't overwrite what sheet/DB already has
+            for k, v in web_data.items():
+                if v and not result.get(k):
+                    result[k] = v
+            if web_data and "source" not in result:
+                result["source"] = "web_search"
+        except Exception as e:
+            log_event("vapi", "warn", f"lookup-business: Web search failed: {e}")
+
+    if not result:
+        log_event("vapi", "warn", f"lookup-business: no data found for name={business_name!r} phone={phone!r}")
+        return {"result": json.dumps({"found": False, "business_name": business_name})}
+
+    result["found"] = True
+    return {"result": json.dumps(result)}
+
+
 @app.post("/vapi/schedule-callback")
 async def vapi_schedule_callback(body: dict):
     """Eric calls this when a prospect asks for a callback."""
@@ -2212,6 +2361,95 @@ async def vapi_send_payment_link(body: dict):
         return {"result": "I hit a technical issue sending the payment link. Please try again in a moment."}
 
 
+@app.post("/vapi/send-sms")
+async def vapi_send_sms(body: dict):
+    """Eric calls this to send an SMS directly to the prospect for quick updates or follow-ups."""
+    try:
+        params = body.get("message", {}).get("functionCall", {}).get("parameters", body)
+        to_number = params.get("to_number", "")
+        sms_body = params.get("body", "")
+        contact_name = params.get("contact_name", "")
+
+        if not to_number:
+            return {"result": "I need a phone number to send the text."}
+
+        if not sms_body:
+            return {"result": "I need the message text to send."}
+
+        from tools.sms_tool import send_sms
+        res = send_sms(to_number=to_number, body=sms_body)
+
+        if res.get("sent"):
+            log_event("vapi", "action", f"SMS sent to {to_number}: {contact_name or 'prospect'}")
+            return {
+                "result": f"SMS delivered to {to_number}.",
+                "sent": True,
+                "phone": to_number,
+            }
+        else:
+            error_msg = res.get("error", "Unknown error")
+            log_event("vapi", "thought", f"SMS delivery failed: {error_msg}")
+            return {
+                "result": f"SMS failed to send: {error_msg}. Want me to retry?",
+                "sent": False,
+                "error": error_msg,
+            }
+
+    except Exception as e:
+        log_event("vapi", "thought", f"send-sms error: {e}")
+        return {"result": f"I hit a technical issue sending the SMS. Error: {str(e)}"}
+
+
+@app.post("/vapi/send-email")
+async def vapi_send_email(body: dict):
+    """Eric calls this to send an email directly to the prospect for detailed information or formal communication."""
+    try:
+        params = body.get("message", {}).get("functionCall", {}).get("parameters", body)
+        to = params.get("to", "")
+        subject = params.get("subject", "")
+        email_body = params.get("body", "")
+        contact_name = params.get("contact_name", "")
+
+        if not to:
+            return {"result": "I need an email address to send the message."}
+
+        if not subject:
+            return {"result": "I need a subject line for the email."}
+
+        if not email_body:
+            return {"result": "I need the message body for the email."}
+
+        from tools.gmail_tool import send_email
+        res = send_email(
+            to=to,
+            subject=subject,
+            body=email_body,
+            from_name="Katy Team",
+            reply_to=os.getenv("GMAIL_ADDRESS", ""),
+        )
+
+        if res.get("sent"):
+            log_event("vapi", "action", f"Email sent to {to}: Subject '{subject}'")
+            return {
+                "result": f"Email sent to {to}.",
+                "sent": True,
+                "email": to,
+                "subject": subject,
+            }
+        else:
+            error_msg = res.get("error", "Unknown error")
+            log_event("vapi", "thought", f"Email delivery failed: {error_msg}")
+            return {
+                "result": f"Email failed to send: {error_msg}. Want me to retry?",
+                "sent": False,
+                "error": error_msg,
+            }
+
+    except Exception as e:
+        log_event("vapi", "thought", f"send-email error: {e}")
+        return {"result": f"I hit a technical issue sending the email. Error: {str(e)}"}
+
+
 @app.get("/vapi/active")
 async def vapi_active_calls():
     """Get currently active VAPI calls with their listen URLs."""
@@ -2325,6 +2563,96 @@ async def vapi_setup(body: dict):
         "phone_number_id": phone_number_id,
         "next_step": f"Add to .env: VAPI_ASSISTANT_ID={assistant_id} and VAPI_PHONE_NUMBER_ID={phone_number_id}"
     }
+
+
+@app.post("/sms/inbound")
+async def sms_inbound(request: Request):
+    """
+    Twilio posts here when someone texts your Twilio number.
+    Handles: opt-outs, replies from prospects, and notifies Katy via Telegram.
+    Twilio sends form-encoded data, not JSON.
+    """
+    from urllib.parse import unquote_plus
+
+    body_bytes = await request.body()
+    raw = body_bytes.decode("utf-8", errors="ignore")
+
+    # Parse form-encoded Twilio payload
+    params = {}
+    for pair in raw.split("&"):
+        if "=" in pair:
+            k, _, v = pair.partition("=")
+            params[unquote_plus(k)] = unquote_plus(v)
+
+    from_number = params.get("From", "")
+    to_number   = params.get("To", "")
+    message_body = params.get("Body", "").strip()
+
+    log_event("sms", "action", f"Inbound SMS from {from_number}: {message_body[:120]}")
+
+    # ── Opt-out handling (legally required) ──────────────────────────────────
+    opt_out_keywords = {"stop", "stopall", "unsubscribe", "cancel", "end", "quit"}
+    opt_in_keywords  = {"start", "unstop", "yes"}
+    msg_lower = message_body.lower().strip()
+
+    if msg_lower in opt_out_keywords:
+        from memory.memory import get_prospects, update_prospect
+        prospects = get_prospects()
+        match = next((p for p in prospects if _phones_match(p.get("phone", ""), from_number)), None)
+        if match:
+            update_prospect(
+                business_name=match["business_name"],
+                location=match.get("location", ""),
+                pipeline_stage="opted_out",
+                next_action="do_not_contact",
+            )
+            log_event("sms", "action", f"Opt-out recorded for {from_number} ({match['business_name']})")
+
+        # Twilio expects TwiML response — empty response confirms opt-out silently
+        return Response(
+            content='<?xml version="1.0" encoding="UTF-8"?><Response></Response>',
+            media_type="application/xml",
+        )
+
+    # ── Look up who this is ───────────────────────────────────────────────────
+    from memory.memory import get_prospects
+    prospects = get_prospects()
+    match = next((p for p in prospects if _phones_match(p.get("phone", ""), from_number)), None)
+    biz_name    = match["business_name"] if match else "Unknown"
+    biz_city    = match.get("location", "") if match else ""
+    temperature = match.get("call_temperature", "") if match else ""
+
+    # ── Notify Katy via Telegram ──────────────────────────────────────────────
+    try:
+        from scheduler import send_telegram
+        temp_tag = f" [{temperature.upper()}]" if temperature else ""
+        tg_msg = (
+            f"📱 <b>SMS Reply{temp_tag}</b>\n"
+            f"From: {from_number}\n"
+            f"Business: {biz_name}" + (f" — {biz_city}" if biz_city else "") + "\n"
+            f"\n<i>{message_body}</i>"
+        )
+        await send_telegram(tg_msg)
+    except Exception as e:
+        log_event("sms", "warn", f"Telegram notify failed: {e}")
+
+    # ── Save reply to prospect record ─────────────────────────────────────────
+    if match:
+        from memory.memory import update_prospect
+        existing_notes = match.get("call_result_summary", "") or ""
+        appended = f"{existing_notes}\n[SMS reply] {message_body}".strip()
+        update_prospect(
+            business_name=match["business_name"],
+            location=match.get("location", ""),
+            call_result_summary=appended[:1000],
+            pipeline_stage="replied_sms",
+        )
+
+    # Return empty TwiML — no auto-reply (Katy handles replies manually or via Telegram)
+    return Response(
+        content='<?xml version="1.0" encoding="UTF-8"?><Response></Response>',
+        media_type="application/xml",
+    )
 
 
 if __name__ == "__main__":

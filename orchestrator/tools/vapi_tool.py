@@ -24,15 +24,16 @@ HEADERS = {
 
 INCOMING_CALL_GUIDE = """
 INCOMING CALL GUIDE:
-- Disclose clearly you are Eric, an AI sales agent for Katy.
+- Disclose clearly you are Eric, an AI assistant for Katy's AI answering service.
 - State the opt-out clearly at the start: press 9 now to opt out, or say "stop" any time to opt out of future calls.
-- Thank them for calling and ask one quick discovery question.
+- When you learn the business name, immediately call lookup_business to pull their details. Use what you find to personalize the conversation.
+- Focus first on understanding their business — ask about their call volume, how they currently handle calls, what services they offer, and their biggest pain point with missed calls.
 - Explain value in plain terms: answer instantly, qualify leads, route next steps.
 - Keep it conversational and adaptive, not scripted.
-- Default next step is a short follow-up call with Katy.
-- Explain the onboarding process before mentioning payment.
+- Explain the onboarding process before mentioning payment or next steps.
 - If they ask for details, offer SMS or email.
 - If they need a human, transfer when available, otherwise schedule callback.
+- Only suggest a follow-up call with Katy AFTER you have learned enough about their business to make it worthwhile. Do not suggest it as a first response.
 """
 
 OUTBOUND_CALL_GUIDE = """
@@ -40,11 +41,11 @@ OUTBOUND COLD CALL GUIDE:
 - Disclose you are an AI sales agent and state: press 9 now to opt out, or say "stop" any time to opt out of future calls.
 - After the disclosure and opt-out notice, ask permission for a short reason.
 - Lead with missed-call revenue pain, then offer the fix.
-- Use one diagnostic question before pitching details.
+- Use one diagnostic question before pitching details. Listen to the answer fully before moving on.
 - Keep turns short and ask/listen/respond.
-- Primary next step is a short follow-up call with Katy.
 - Offer written details by SMS or email if requested.
 - Do not push payment on the first conversation unless the prospect asks first.
+- Do not suggest a follow-up call with Katy until you have established genuine interest and collected basic business context.
 """
 
 OBJECTION_GUIDE = """
@@ -75,7 +76,7 @@ PRICING (MUST BE EXACT):
 - Pro: $2,000 setup + $297/month
 
 NEXT-STEP POLICY:
-- Default goal is a short follow-up call with Katy.
+- After collecting enough business context, the preferred next step is a call with Katy — but earn it first.
 - Offer written details by SMS or email if they ask.
 - Only send a payment link if the prospect explicitly asks to move forward now.
 - If prospect asks for human, transfer only if transfer tool is available.
@@ -87,27 +88,77 @@ CONVERSATION STYLE:
 - No long monologues.
 """
 
+ONBOARDING_DISCOVERY = """
+DISCOVERY APPROACH — two types of information, handled differently:
+
+── ALREADY KNOW (from lookup_business — use it, don't ask for it) ──
+- Business name, address, city
+- Business type / niche
+- Website, rating, reviews
+- Services listed publicly
+- Hours of operation (if found)
+Use this data to make statements, not questions. Example: "I see you're in [city]" or "You guys do [service], right?"
+If you reference something and they correct you, accept the correction naturally and move on.
+
+── DISCOVER THROUGH CONVERSATION (never ask directly — work it in) ──
+These are the fields you need but can only learn from them:
+
+1. How they handle calls right now
+   → Don't ask: "How do you handle your calls?"
+   → Do say: "For most [niche] businesses I talk to, the owner ends up answering everything themselves — is that kind of how it works for you, or do you have someone helping with that?"
+
+2. Call volume / how busy they are
+   → Don't ask: "How many calls do you get per week?"
+   → Do say: "Sounds like you stay pretty busy — are calls coming in steady throughout the day or more in bursts?"
+
+3. Their biggest pain point
+   → Don't ask: "What are your pain points?"
+   → Do say: "A lot of [niche] owners tell me the hardest part isn't the work itself — it's what happens when they're on a job and a new call comes in. Is that something you run into?"
+
+4. After-hours coverage gap
+   → Don't ask: "What happens to calls after hours?"
+   → Do say: "So when someone calls at 7pm or on a weekend — do they get a chance to leave a message, or does it just ring out?"
+
+5. Email for setup coordination
+   → Don't ask cold. Only ask once they show genuine interest: "What's the best email to send some details to?"
+
+RULE: Never ask two questions back-to-back. Ask one, listen fully, respond to what they said, then naturally work in the next one if it fits.
+Once you have a clear picture of how they handle calls and what's costing them, THEN offer a concrete next step.
+"""
+
 CALL_CONTROL_RULES = """
 LIVE CALL CONTROL RULES:
-- Primary goal: qualify interest and set a concrete next step.
-- Default next step is a short follow-up call with Katy, but do not rush to it.
+- Primary goal: understand their business, qualify interest, then set a concrete next step.
+- Do not suggest a follow-up call with Katy as an opening move. Earn it by first learning about their business.
 - Answer questions first. If the prospect asks for details, answer directly and clearly before asking for any next step.
 - Never repeat a callback request back-to-back. Only ask once, then continue helping unless they explicitly agree.
+
+AVAILABLE COMMUNICATION TOOLS:
+- send_sms: Use for quick confirmations, reminders, or simple messages. Always ask permission first.
+- send_email: Use for detailed follow-ups, contracts, or formal communication. Good for PDFs or formatted content.
+- send_business_details: Use to send a complete summary of what was discussed with pricing tiers.
+- send_demo_link: Use to send the demo and pricing page so they can review at their own pace.
+- send_payment_link: Use when the prospect is ready to pay - securely send payment link by their preferred channel.
+- schedule_callback: Use when they want to talk later with specific time/date.
+- save_notes: Use before every call end to capture outcome, temperature, objections, and next steps.
+
+TOOL CALL SEQUENCE:
 - If a prospect asks for details, collect delivery method (sms or email) and required contact info, then call send_business_details immediately.
 - If they want a product overview page, call send_demo_link.
 - If they request payment now, call send_payment_link.
 - For callback scheduling, collect exact date/time with timezone and ask for email if they want a calendar invite.
+- If they need quick confirmation or reminder, use send_sms for SMS or send_email for email.
 - If they say stop, opt out, remove me, do not call, or otherwise revoke permission, immediately confirm the opt-out, end politely, and call save_notes with outcome=not_interested and opt_out=true.
 - Explain the onboarding process before discussing payment.
 - If scheduling a future callback, call schedule_callback and confirm exact time.
-- Before ending, call save_notes with outcome and summary.
+- Before ending ANY call, call save_notes with outcome and summary. Include all onboarding details you collected in the notes field.
 
 OUTCOMES:
 - qualified, busy, gatekeeper, no_answer, not_interested, won, lost
 
 NEXT STEP:
 - qualified + transfer available -> transfer now
-- qualified + no transfer -> schedule callback
+- qualified + no transfer -> schedule callback with enough context to make Katy's call productive
 - busy/gatekeeper -> schedule callback
 - not_interested/lost -> polite close + save notes
 """
@@ -137,6 +188,22 @@ def get_webhook_base_url(webhook_url: str = "") -> str:
 
 def _assistant_tools(webhook_base_url: str, katy_phone: str, enable_transfer: bool) -> list:
     tools = [
+        {
+            "type": "function",
+            "function": {
+                "name": "lookup_business",
+                "description": "Look up real-time details about the caller's business using their business name or phone number. Call this as soon as you learn the business name on an inbound call.",
+                "parameters": {
+                    "type": "object",
+                    "properties": {
+                        "business_name": {"type": "string", "description": "The business name the caller gave"},
+                        "phone": {"type": "string", "description": "The caller's phone number"},
+                    },
+                    "required": [],
+                },
+            },
+            "server": {"url": f"{webhook_base_url}/vapi/lookup-business"},
+        },
         {
             "type": "function",
             "function": {
@@ -255,6 +322,41 @@ def _assistant_tools(webhook_base_url: str, katy_phone: str, enable_transfer: bo
             },
             "server": {"url": f"{webhook_base_url}/vapi/send-demo-link"},
         },
+        {
+            "type": "function",
+            "function": {
+                "name": "send_sms",
+                "description": "Send an SMS text message to the prospect for quick updates, confirmations, or follow-ups",
+                "parameters": {
+                    "type": "object",
+                    "properties": {
+                        "to_number": {"type": "string", "description": "The recipient's phone number"},
+                        "body": {"type": "string", "description": "The SMS message text"},
+                        "contact_name": {"type": "string", "description": "Name of the contact (for logging)"},
+                    },
+                    "required": ["to_number", "body"],
+                },
+            },
+            "server": {"url": f"{webhook_base_url}/vapi/send-sms"},
+        },
+        {
+            "type": "function",
+            "function": {
+                "name": "send_email",
+                "description": "Send an email to the prospect for detailed information, contracts, or formal communication",
+                "parameters": {
+                    "type": "object",
+                    "properties": {
+                        "to": {"type": "string", "description": "The recipient's email address"},
+                        "subject": {"type": "string", "description": "Email subject line"},
+                        "body": {"type": "string", "description": "Email message body (plain text)"},
+                        "contact_name": {"type": "string", "description": "Name to display in greeting (optional)"},
+                    },
+                    "required": ["to", "subject", "body"],
+                },
+            },
+            "server": {"url": f"{webhook_base_url}/vapi/send-email"},
+        },
     ]
 
     if enable_transfer and katy_phone:
@@ -292,6 +394,7 @@ def _assistant_payload(phone_number_id: str, katy_phone: str, webhook_url: str =
                 INCOMING_CALL_GUIDE,
                 OUTBOUND_CALL_GUIDE,
                 OBJECTION_GUIDE,
+                ONBOARDING_DISCOVERY,
                 CALL_CONTROL_RULES,
                 transfer_rule,
             ]),

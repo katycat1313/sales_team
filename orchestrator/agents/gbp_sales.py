@@ -1,20 +1,12 @@
 """
-GBP Sales Agent
----------------
-Handles the pitch, proposal, and payment side of GBP service sales.
+Legacy Sales Agent (gbp_sales)
+------------------------------
+Backward-compatible sales closer that now sells Katy's AI answering-service offers.
 
-Responsibilities:
-- Generates personalized proposals with specific GBP fixes
-- Creates Stripe payment link for full price OR split deposit
-- Creates Stripe invoice for final payment on delivery
-- Offers monthly retainer as upsell ($98/month)
-- Notifies Katy when deposits land (via Telegram)
-
-Pricing:
-- Free automated GBP audit (lead magnet)
-- $197 one-time GBP optimization (primary ask — paid upfront)
-- $98 deposit / $97 on completion (split payment fallback if hesitant)
-- $98/month ongoing management (optional retainer upsell)
+Current offer ladder:
+- Starter: $500 setup + $97/month
+- Standard: $1,000 setup + $197/month
+- Pro: $2,000 setup + $297/month
 """
 
 import json
@@ -23,10 +15,15 @@ from .base import BaseAgent
 from memory.memory import get_prospects, update_prospect
 
 
-OPTIMIZATION_PRICE = 197.00   # Primary ask — full upfront
-SPLIT_DEPOSIT = 98.00          # Split fallback: deposit paid to start
-SPLIT_FINAL = 97.00            # Split fallback: remainder paid on delivery
-RETAINER_PRICE = 98.00         # Monthly ongoing management
+STARTER_SETUP = 500.00
+STANDARD_SETUP = 1000.00
+PRO_SETUP = 2000.00
+
+# Legacy aliases kept for callers that still reference old names.
+OPTIMIZATION_PRICE = STANDARD_SETUP
+SPLIT_DEPOSIT = STARTER_SETUP
+SPLIT_FINAL = STANDARD_SETUP
+RETAINER_PRICE = 197.00
 
 # Legacy aliases kept for any callers that reference the old names
 DEPOSIT_AMOUNT = SPLIT_DEPOSIT
@@ -47,7 +44,7 @@ class GBPSalesAgent(BaseAgent):
         super().__init__(
             name="gbp_sales",
             role=(
-                "the GBP service sales closer who writes proposals, generates Stripe payment links, "
+                "the answering-service sales closer who writes proposals, generates Stripe payment links, "
                 "and manages the deal pipeline. You are an expert persuader trained in proven sales "
                 "psychology. You always lead with the prospect's pain (lost customers), use the "
                 "customer's name, give maximum 3 problem points, and make one clear ask. "
@@ -75,17 +72,17 @@ class GBPSalesAgent(BaseAgent):
             return f"[Stripe error: {e}]"
 
     async def _create_deposit_link(self, business_name: str, amount: float) -> str:
-        """Create a Stripe payment link for the full upfront price."""
+        """Create a Stripe payment link for setup payment."""
         return await self._create_payment_link(
             business_name, amount,
-            "GBP Optimization", "gbp_full_payment"
+            "AI Answering Service Setup", "setup_payment"
         )
 
     async def _create_split_deposit_link(self, business_name: str) -> str:
-        """Create a Stripe payment link for the split-payment deposit ($98)."""
+        """Create a Stripe payment link for Starter setup as low-friction entry."""
         return await self._create_payment_link(
             business_name, SPLIT_DEPOSIT,
-            "GBP Optimization Deposit", "gbp_split_deposit"
+            "AI Answering Service Starter Setup", "starter_setup"
         )
 
     async def _create_final_invoice(self, business_name: str, email: str, amount: float) -> str:
@@ -100,7 +97,7 @@ class GBPSalesAgent(BaseAgent):
                 customer_email=email,
                 customer_name=business_name,
                 amount_dollars=amount,
-                description=f"GBP Optimization — Final Payment — {business_name}",
+                description=f"AI Answering Service — Follow-up Invoice — {business_name}",
                 due_days=7,
             )
             return result.get("invoice_url") or result.get("error", "Invoice creation failed")
@@ -108,7 +105,7 @@ class GBPSalesAgent(BaseAgent):
             return f"[Stripe error: {e}]"
 
     async def run(self, task: str) -> str:
-        self.think(f"GBP Sales Agent: {task[:100]}")
+        self.think(f"Sales Agent (legacy gbp_sales): {task[:100]}")
 
         task_lower = task.lower()
 
@@ -142,10 +139,11 @@ class GBPSalesAgent(BaseAgent):
                 except Exception:
                     issues = []
 
-                # Generate Stripe payment links
+                # Generate Stripe payment links for each tier setup
                 self.think(f"Creating payment links for {biz}")
-                full_payment_link = await self._create_deposit_link(biz, OPTIMIZATION_PRICE)
-                split_deposit_link = await self._create_split_deposit_link(biz)
+                starter_link = await self._create_deposit_link(biz, STARTER_SETUP)
+                standard_link = await self._create_deposit_link(biz, STANDARD_SETUP)
+                pro_link = await self._create_deposit_link(biz, PRO_SETUP)
 
                 # Generate retainer subscription link
                 retainer_link = "[Add Stripe key to generate retainer link]"
@@ -162,24 +160,24 @@ class GBPSalesAgent(BaseAgent):
 
                 # Generate personalized proposal email
                 proposal_system = f"""
-Write a short, professional proposal email for a GBP optimization service.
+Write a short, professional proposal email for Katy's AI answering-service offer.
 
 Business: {biz} in {loc}
-Their GBP issues: {', '.join(issues) if issues else 'Multiple gaps'}
+Their pain points: {', '.join(issues) if issues else 'missed calls / delayed response'}
 Research notes: {research[:800] if research else 'N/A'}
-Full payment link ($197): {full_payment_link}
-Split deposit link ($98 now): {split_deposit_link}
-Retainer link: {retainer_link}
+Starter setup link ($500): {starter_link}
+Standard setup link ($1,000): {standard_link}
+Pro setup link ($2,000): {pro_link}
 
 Write in Katy's voice — friendly, direct, not corporate.
 Structure:
 1. Opening: reference something specific about their business (1 sentence)
-2. The problem: what their GBP gaps are costing them in missed customers (specific, urgent)
-3. The solution: what you'll fix exactly (3-5 bullet points of deliverables)
-4. Pricing — present BOTH options clearly:
-   - Option A: $197 paid today — simplest, we start immediately → [FULL PAYMENT LINK]
-   - Option B: $98 now, ${SPLIT_FINAL:.0f} when the work is done → [SPLIT DEPOSIT LINK]
-5. Upsell: Optional ${RETAINER_PRICE:.0f}/month ongoing management (reviews, posts, updates) → [RETAINER LINK]
+2. The problem: what missed-call leakage is costing them in missed jobs/revenue
+3. The solution: how AI answering fixes coverage, capture, and follow-up speed
+4. Pricing — present all tiers clearly:
+    - Starter: $500 setup + $97/month → [STARTER LINK]
+    - Standard: $1,000 setup + $197/month → [STANDARD LINK]
+    - Pro: $2,000 setup + $297/month → [PRO LINK]
 6. CTA: Tell them to pick whichever option works for them — no pressure
 
 Keep it under 275 words. Sound like a real human expert, not a marketing bot.
@@ -191,15 +189,15 @@ Keep it under 275 words. Sound like a real human expert, not a marketing bot.
                     business_name=biz,
                     location=loc,
                     outreach_draft=proposal,
-                    stripe_deposit_link=split_deposit_link,
+                    stripe_deposit_link=standard_link,
                     pipeline_stage="proposal_ready",
                 )
 
                 output_lines.append(f"=== PROPOSAL: {biz} ===")
                 output_lines.append(f"Contact: {email or 'email not found — check manually'}")
-                output_lines.append(f"Full payment link ($197): {full_payment_link}")
-                output_lines.append(f"Split deposit link ($98): {split_deposit_link}")
-                output_lines.append(f"Retainer link (${RETAINER_PRICE:.0f}/mo): {retainer_link}")
+                output_lines.append(f"Starter setup link ($500): {starter_link}")
+                output_lines.append(f"Standard setup link ($1,000): {standard_link}")
+                output_lines.append(f"Pro setup link ($2,000): {pro_link}")
                 output_lines.append("")
                 output_lines.append(proposal)
                 output_lines.append("")
@@ -207,14 +205,14 @@ Keep it under 275 words. Sound like a real human expert, not a marketing bot.
         else:
             # Generate proposal from task context (no DB prospects)
             proposal_system = f"""
-Based on the context below, write a GBP optimization proposal email.
+Based on the context below, write an AI answering-service proposal email.
 
-Pricing — present both options:
-- Option A: ${OPTIMIZATION_PRICE:.0f} paid today (simplest — start immediately)
-- Option B: ${SPLIT_DEPOSIT:.0f} deposit now, ${SPLIT_FINAL:.0f} when work is done
-Also mention: ${RETAINER_PRICE:.0f}/month ongoing management option.
+Pricing must be exact:
+- Starter: $500 setup + $97/month
+- Standard: $1,000 setup + $197/month
+- Pro: $2,000 setup + $297/month
 
-Be specific about their GBP problems and what fixing it means for their business.
+Be specific about their missed-call problems and what fixing call coverage means for their business.
 Sound like Katy — direct, warm, expert.
 Flag this for approval before sending.
 
@@ -225,12 +223,12 @@ Context: {task}
 
         # Always require approval before sending proposals
         self.needs_approval(
-            action="send_gbp_proposal",
+            action="send_answering_service_proposal",
             details={
                 "prospects_count": len(prospects) if prospects else 1,
-                "full_price": OPTIMIZATION_PRICE,
-                "split_deposit": SPLIT_DEPOSIT,
-                "split_final": SPLIT_FINAL,
+                "starter_setup": STARTER_SETUP,
+                "standard_setup": STANDARD_SETUP,
+                "pro_setup": PRO_SETUP,
                 "preview": output_lines[0][:200] if output_lines else "",
             }
         )
@@ -250,8 +248,8 @@ Context: {task}
         if not prospects:
             system = f"""
 Generate a professional final payment invoice email.
-The work has been completed. Request the remaining payment (${SPLIT_FINAL:.0f} if on split plan, or ${OPTIMIZATION_PRICE:.0f} if paying in full).
-Mention what was delivered. Also offer ${RETAINER_PRICE:.0f}/month ongoing management.
+The setup work has been completed and onboarding is ready.
+Request any remaining setup payment and confirm monthly tier billing details.
 """
             return await self.call_llm(system, task)
 
@@ -274,11 +272,11 @@ Mention what was delivered. Also offer ${RETAINER_PRICE:.0f}/month ongoing manag
 
             completion_system = f"""
 Write a short, warm completion email to {biz}.
-- The GBP optimization is done
+- The answering-service setup is done
 - Here's what was completed (list 4-5 deliverables)
 - Final payment of ${FINAL_AMOUNT:.0f} is due: {invoice_url}
 - Offer to walk them through the changes
-- Mention the ${RETAINER_PRICE}/month ongoing management option
+- Mention ongoing monthly support if they selected it
 - Keep it friendly and brief
 """
             email_body = await self.call_llm(completion_system, f"Completion email for {biz}")

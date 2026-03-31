@@ -1,78 +1,95 @@
-# iFixProfiles — AI Sales Pipeline
-### Automated Google Business Profile Sales System
+# Katy AI Sales Team
+### AI Answering-Service Cold Call Pipeline
 
-An AI-powered sales engine that finds local businesses with broken Google Business Profiles, researches them, and reaches out via AI phone calls, Facebook DMs, Instagram DMs, and email — then transfers warm leads directly to Katy to close.
+An AI-powered outbound sales system that finds service-business prospects, researches call-handling pain points, calls them with Eric (AI voice agent), and moves qualified prospects toward demo, callback, and payment.
 
 ---
 
-## The Sales Team
+## Core Offer (Current)
+
+### Starter — $500 setup + $97/month
+- Missed-call coverage
+- Message capture
+- Basic FAQ responses
+- No scheduling
+
+### Standard — $1,000 setup + $197/month
+- Everything in Starter
+- Appointment booking
+- Objection handling
+- Hot lead transfer to Katy
+
+### Pro — $2,000 setup + $297/month
+- Everything in Standard
+- Custom personality and tone
+- Multiple call flows
+- After-hours handling
+- Full onboarding
+
+---
+
+## Team Roles
 
 | Agent | Role |
 |---|---|
-| **Coordinator** | Runs the operation. Delegates tasks, monitors the pipeline, and sends Katy daily briefings via Telegram. |
-| **GBP Scout** | Hunts Google Maps for local businesses with missing, incomplete, or outdated Google Business Profiles. Saves real prospects with phone numbers to the database. |
-| **GBP Researcher** | Digs deep on every prospect — finds owner name, services, years in business, reviews, website quality, and buyer intent signals so Eric can personalize every call. |
-| **Eric (VAPI AI Caller)** | Makes outbound AI cold calls using ElevenLabs voice. Armed with full business intel, MEDDIC sales framework, and objection handlers. Transfers warm leads directly to Katy's phone the moment a prospect says yes. |
-| **Outreach Agent** | Drafts and sends personalized Facebook DMs, Instagram DMs, and emails. Queues everything for Katy's approval before sending. Uses 27 proven persuasion techniques. |
-| **GBP Sales Agent** | Supports Katy on the close. Knows the full pitch, pricing objections, and how to position the offer. |
-| **Sales Ops** | Tracks the pipeline, logs call outcomes, schedules callbacks, and manages Stripe payment links. |
-| **Small Biz Expert** | Advises on what matters most to local business owners so the pitch stays relevant and resonant. |
+| **Coordinator** | Orchestrates missions, assigns agents, and tracks outcomes. |
+| **Lead Gen** | Finds local service businesses likely losing revenue from missed calls. |
+| **Research Assistant / Small Biz Expert** | Enriches each lead with decision-maker and operational pain intel. |
+| **Eric (VAPI AI Caller)** | Runs outbound calls, answers questions, sends details by SMS/email, handles objections, and sets callbacks. |
+| **Sales / Sales Ops** | Supports close motion, logs outcomes, schedules follow-up, and triggers payment links. |
+| **Outreach** | Generates approved follow-up outreach across channels. |
 
 ---
 
-## The Service
+## Call Flow
 
-**One-time GBP Optimization — $197**
-- Full Google Business Profile audit and fix
-- $99 deposit to start, $99 on completion
-- Delivered same day (2–4 hours)
-
-**Ongoing Management — $98/month**
-- Monthly posts, review monitoring, updates
-- Keeps clients ranked above competitors long-term
-
-**30-day money-back guarantee on everything.**
+```
+Lead Gen + Research find qualified service businesses
+        ↓
+Eric places outbound calls (with opt-out disclosure)
+        ↓
+Eric answers questions and sends requested details (SMS/email)
+        ↓
+Prospect chooses next step: callback, demo link, or payment link
+        ↓
+Katy joins warm transfers and closes
+```
 
 ---
 
-## How the Pipeline Works
+## Compliance + Delivery Features
 
-```
-GBP Scout finds businesses with bad profiles
-        ↓
-GBP Researcher builds full intel dossier
-        ↓
-Eric calls the business (AI voice, real phone)
-        ↓
-Prospect shows interest → transferred to Katy
-        ↓
-Katy closes → Stripe payment link sent
-        ↓
-Work delivered same day → $98/month recurring starts
-```
+- DNC scrubbing before outbound calls
+- Opt-out handling and internal DNC recording
+- Call outcome logging and compliance logs
+- In-call fulfillment tools:
+  - `send_business_details`
+  - `send_demo_link`
+  - `send_payment_link`
+  - `schedule_callback` (calendar-ready)
 
 ---
 
 ## Tech Stack
 
-- **FastAPI** — orchestrator backend (port 8000)
-- **Docker** — containerized, runs on Windows with Docker Desktop
-- **VAPI** — AI outbound phone calls (Eric's voice via ElevenLabs)
-- **Playwright** — browser automation for Google Maps scraping and social DMs
-- **Anthropic Claude + Google Gemini** — agent intelligence
-- **Stripe** — payment links and invoices
-- **SendGrid** — email outreach
-- **Telegram Bot** — Katy's mobile command interface
+- FastAPI orchestrator (port 8000)
+- Docker Compose runtime
+- VAPI + ElevenLabs voice for outbound calls
+- Stripe payment links
+- Twilio SMS delivery
+- Gmail email delivery
+- Google Calendar API support for callback scheduling
+- Telegram bot notifications
 
 ---
 
-## Dashboard
+## Local URLs
 
 ```
-http://localhost:8000/dashboard   ← full pipeline view
-http://localhost:8000/prospects   ← prospect database
-http://localhost:8000/approvals   ← pending outreach to approve
-http://localhost:8000/vapi/calls  ← call log and outcomes
+http://localhost:8000/
+http://localhost:8000/dashboard
+http://localhost:8000/prospects
+http://localhost:8000/compliance/logs
 ```
 
 ---
@@ -80,18 +97,18 @@ http://localhost:8000/vapi/calls  ← call log and outcomes
 ## Quick Start
 
 ```bash
-# Start everything
+# Start services
 docker compose up -d
 
-# Check it's running
-curl http://localhost:8000/health
+# Basic health check
+curl http://localhost:8000/
 
-# Trigger a prospect scan manually
+# Trigger a lead mission
 curl -X POST http://localhost:8000/task \
   -H "Content-Type: application/json" \
-  -d '{"task": "Scan for GBP prospects: plumbers in Houston TX", "agent": "gbp_scout"}'
+  -d '{"task": "Find service-business prospects in Houston TX", "agent": "lead_gen"}'
 
-# Trigger a call
+# Trigger one outbound call
 curl -X POST http://localhost:8000/vapi/call \
   -H "Content-Type: application/json" \
   -d '{"prospect_phone": "+17135550000", "business_name": "Acme Plumbing"}'
@@ -99,34 +116,47 @@ curl -X POST http://localhost:8000/vapi/call \
 
 ---
 
-## Environment Variables (.env)
+## Required Environment Variables
 
-```
-ANTHROPIC_API_KEY=
-GEMINI_API_KEY=
+```env
+# Core runtime
 VAPI_API_KEY=
 VAPI_ASSISTANT_ID=
 VAPI_PHONE_NUMBER_ID=
-KATY_PHONE=3044108850
+KATY_PHONE=
+ENABLE_ERIC_CALLS=false
+
+# Payments + delivery
 STRIPE_SECRET_KEY=
-SENDGRID_API_KEY=
+TWILIO_ACCOUNT_SID=
+TWILIO_AUTH_TOKEN=
+TWILIO_FROM_NUMBER=
+
+# Email delivery
+GMAIL_USER=
+GMAIL_APP_PASSWORD=
+
+# Callback scheduling (Google Calendar)
+GOOGLE_CALENDAR_ID=
+GOOGLE_SERVICE_ACCOUNT_FILE=
+# or GOOGLE_SERVICE_ACCOUNT_JSON=
+GOOGLE_CALENDAR_TIMEZONE=America/Los_Angeles
+
+# Optional links
+CALENDLY_LINK=
+DEMO_URL=
+
+# Optional notifications
 TELEGRAM_BOT_TOKEN=
 KATY_TELEGRAM_ID=
 ```
 
 ---
 
-## Automated Schedule
+## Go-Live Checklist
 
-The scheduler runs 24/7 and handles everything autonomously:
-
-| Time | Action |
-|---|---|
-| Startup | Immediate prospect scan across 3 niche/city combos |
-| 8:00 AM | Morning prospect scan (3 more combos) |
-| 9:30 AM | Research pass — builds intel on all new prospects |
-| 11:00 AM | Outreach queue — drafts DMs and emails for approval |
-| 2:00 PM | Afternoon scan — new niches and cities |
-| 4:00 PM | Second research pass |
-| 6:00 PM | End of day pipeline report to Katy via Telegram |
-| Every 30 min | Pings Katy if anything is waiting for approval |
+1. Set `ENABLE_ERIC_CALLS=true` only when phone line + compliance are validated.
+2. Confirm Twilio SMS and Gmail delivery both work from the tool endpoints.
+3. Confirm callback scheduling creates calendar events successfully.
+4. Run one end-to-end test call: details request, callback request, demo link, payment link.
+5. Verify DNC and opt-out blocking on follow-up attempts.

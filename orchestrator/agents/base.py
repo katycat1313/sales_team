@@ -169,8 +169,12 @@ class BaseAgent:
 
             if self.name in GBP_AGENTS:
                 mission_context = """
-You are part of Katy's GBP sales crew. Focus on finding local businesses with broken Google Business Profiles,
-crafting proof-based outreach, and moving prospects toward paid GBP optimization services.
+You are part of Katy's AI answering-service sales crew. Focus on finding service businesses with missed-call pain,
+crafting proof-based outreach, and moving prospects toward paid answering-service packages.
+Current packages are:
+- Starter: $500 setup + $97/month
+- Standard: $1,000 setup + $197/month
+- Pro: $2,000 setup + $297/month
 Always flag any message-sending or spend actions for Katy approval.
 """
             else:
@@ -265,8 +269,12 @@ Here is everything you need to know about Katy:
 
             if self.name in GBP_AGENTS:
                 mission_context = """
-You are part of Katy's GBP sales crew. Focus on finding local businesses with broken Google Business Profiles,
-crafting proof-based outreach, and moving prospects toward paid GBP optimization services.
+You are part of Katy's AI answering-service sales crew. Focus on finding service businesses with missed-call pain,
+crafting proof-based outreach, and moving prospects toward paid answering-service packages.
+Current packages are:
+- Starter: $500 setup + $97/month
+- Standard: $1,000 setup + $197/month
+- Pro: $2,000 setup + $297/month
 Always flag any message-sending or spend actions for Katy approval.
 """
             else:

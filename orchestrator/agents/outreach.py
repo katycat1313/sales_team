@@ -18,10 +18,10 @@ class OutreachAgent(BaseAgent):
         super().__init__(
             name="outreach",
             role=(
-                "the outreach specialist who crafts highly persuasive, personalized messages for GBP "
+                "the outreach specialist who crafts highly persuasive, personalized messages for AI answering-service "
                 "sales in Katy's authentic voice. You write like a real person — conversational, specific, "
                 "never salesy. Every message leads with their specific problem, uses their name, references "
-                "exactly what you found on their listing, and makes one clear low-pressure ask. "
+                "exactly what you found about their call-handling pain, and makes one clear low-pressure ask. "
                 "You never use generic templates — every message is unique to that business.\n\n"
                 "MESSAGE RULES:\n"
                 "- Use 'you/your' not 'we/our'\n"
@@ -53,16 +53,16 @@ class OutreachAgent(BaseAgent):
     async def run(self, task: str) -> str:
         self.think(f"Outreach drafting: {task[:100]}")
 
-        # Check if this is GBP outreach (coming from gbp_researcher)
-        is_gbp = any(x in task.lower() for x in ["gbp", "google business", "business profile", "gbp researcher", "dossier"])
+        # Check if this is pipeline outreach for answering-service sales
+        is_pipeline = any(x in task.lower() for x in ["lead", "prospect", "dossier", "research", "missed call", "answering", "gbp researcher", "gbp"])
 
-        # Pull researched prospects from DB if GBP pipeline
+        # Pull researched prospects from DB for pipeline outreach
         prospects_with_email = []
-        if is_gbp:
+        if is_pipeline:
             researched = get_prospects(stage="researched", limit=5)
             prospects_with_email = [p for p in researched if p.get("email")]
 
-        if is_gbp and prospects_with_email:
+        if is_pipeline and prospects_with_email:
             # Draft one personalized email per prospect
             all_drafts = []
             for prospect in prospects_with_email:
@@ -79,18 +79,21 @@ class OutreachAgent(BaseAgent):
 
                 system = f"""
 You are writing a cold outreach email FROM Katy (ifixprofiles@gmail.com) TO a local business owner.
-Katy's service: She fixes and optimizes Google Business Profiles for local businesses.
-Price: $197 total (one-time). If they ask about splitting, it's $98 now and $97 on completion.
+Katy's service: AI answering-service setup for service businesses that lose revenue from missed calls.
+Offer tiers:
+- Starter: $500 setup + $97/month
+- Standard: $1,000 setup + $197/month
+- Pro: $2,000 setup + $297/month
 
 Business: {biz_name} in {location}
-Their GBP issues: {', '.join(issues) if issues else 'incomplete profile'}
+Known pain signals: {', '.join(issues) if issues else 'missed calls / delayed response risk'}
 Research notes: {research_notes[:800] if research_notes else 'small local business'}
 
 Write a SHORT, friendly cold email. Rules:
 - Max 5 sentences in the body
-- Lead with ONE specific problem you found on their Google listing
+- Lead with ONE specific missed-call or response-time problem you found
 - Explain what it's costing them (missed calls, lost customers)
-- Offer to fix it for $197 total
+- Offer the simplest fitting tier first (Starter if unsure)
 - End with a simple yes/no question
 
 Output EXACTLY in this format (no extra text):
@@ -100,7 +103,7 @@ BODY:
 [email body here]
 ---
 """
-                draft = await self.call_llm(system, f"Draft GBP outreach for {biz_name}")
+                draft = await self.call_llm(system, f"Draft answering-service outreach for {biz_name}")
                 parts = self._extract_email_parts(draft)
 
                 if parts["subject"] and parts["body"]:
@@ -141,7 +144,7 @@ BODY:
             return result
 
         else:
-            # General outreach (non-GBP or no researched prospects yet)
+            # General outreach (no researched prospects yet)
             contacted = get_contacts(status="contacted")
             already_contacted = "\n".join([f"- {c['name']}" for c in contacted]) if contacted else "None yet"
 
