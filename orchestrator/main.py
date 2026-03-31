@@ -1836,6 +1836,24 @@ async def vapi_lookup_business(body: dict):
 
     result = {}
 
+    # 0. HubSpot CRM lookup
+    hubspot_token = os.getenv('HUBSPOT_ACCESS_TOKEN') or os.getenv('HUBSPOT_API_KEY')
+    if hubspot_token and (phone or business_name):
+        try:
+            import httpx as _hx
+            _prop = 'phone' if phone else 'company'
+            _val = (phone or '').replace('+1','').replace('-','').replace('(','').replace(')','').replace(' ','') if phone else business_name
+            _hs_body = {'filterGroups':[{'filters':[{'propertyName':_prop,'operator':'CONTAINS_TOKEN','value':_val}]}],'properties':['firstname','lastname','company','phone','email','city','state','jobtitle','industry','hs_lead_status']}
+            async with _hx.AsyncClient() as _c:
+                _r = await _c.post('https://api.hubapi.com/crm/v3/objects/contacts/search',json=_hs_body,headers={'Authorization':f'Bearer {hubspot_token}'},timeout=5)
+                if _r.status_code == 200:
+                    _d = _r.json()
+                    if _d.get('total',0) > 0:
+                        _p = _d['results'][0]['properties']
+                        result = {'owner_name':f"{_p.get('firstname','')} {_p.get('lastname','')}".strip(),'business_name':_p.get('company',''),'city':_p.get('city',''),'business_type':_p.get('industry',''),'email':_p.get('email',''),'phone':_p.get('phone',''),'crm_status':_p.get('hs_lead_status',''),'source':'hubspot_crm','found':True}
+        except Exception as _e:
+            log_event('vapi','warn',f'HubSpot lookup failed: {_e}')
+
     # 1. Local prospects DB
     from memory.memory import get_prospects
     prospects = get_prospects()
