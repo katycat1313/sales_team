@@ -12,6 +12,21 @@ from dotenv import load_dotenv
 load_dotenv(Path(__file__).resolve().parent.parent / ".env", override=False)
 load_dotenv(Path(__file__).resolve().parent / ".env", override=False)
 
+# ── Google Service Account credentials ──────────────────────────────────────
+import base64, tempfile
+_gac = os.getenv('GOOGLE_APPLICATION_CREDENTIALS_JSON')
+if _gac:
+    try:
+        _decoded = base64.b64decode(_gac).decode('utf-8')
+        _tmp = tempfile.NamedTemporaryFile(mode='w', suffix='.json', delete=False)
+        _tmp.write(_decoded)
+        _tmp.close()
+        os.environ['GOOGLE_APPLICATION_CREDENTIALS'] = _tmp.name
+        print(f'Google credentials loaded -> {_tmp.name}')
+    except Exception as _e:
+        print(f'Warning: Could not load GOOGLE_APPLICATION_CREDENTIALS_JSON: {_e}')
+# ────────────────────────────────────────────────────────────────────────────
+
 from agents.coordinator import CoordinatorAgent
 from agents.research import ResearchAgent
 from agents.small_biz_expert import SmallBizExpertAgent
