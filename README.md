@@ -298,7 +298,7 @@ python -m pytest tests/ -v
 
 ### Demo Flow End-to-End Tests
 
-A dedicated test suite validates the full Vaspi/VAPI demo process at the HTTP
+A dedicated test suite validates the full VAPI demo process at the HTTP
 handler boundary using mocked external integrations (no real network calls):
 
 ```bash

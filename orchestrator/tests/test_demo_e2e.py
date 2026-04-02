@@ -1,14 +1,14 @@
 """
 Demo Process End-to-End Tests
 ==============================
-Exercises the complete Vaspi/VAPI demo flow at the HTTP handler boundary using
+Exercises the complete VAPI demo flow at the HTTP handler boundary using
 FastAPI's TestClient and fully mocked external integrations (Google Sheet,
 Twilio SMS, SendGrid email, SQLite DB).
 
 Test Coverage:
 1) Known caller inbound call path (lookup-caller with Sheet match)
 2) Unknown caller inbound call path (lookup-caller with no match)
-3) Enrichment behaviour (update-prospect-info blank-fill, no overwrite)
+3) Enrichment behavior (update-prospect-info blank-fill, no overwrite)
 4) Outbound outreach messaging (SMS + email template rendering, error handling)
 5) Intent + emotion (prompt sections, save_notes schema fields)
 """
