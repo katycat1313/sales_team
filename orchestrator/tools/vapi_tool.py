@@ -22,12 +22,55 @@ HEADERS = {
     "Content-Type": "application/json",
 }
 
+# ── Configurable static outreach message templates ────────────────────────────
+# These are the pre-written messages Eric sends to prospects via SMS or email
+# during or after a call. Override them with environment variables.
+
+OUTREACH_SMS_TEMPLATE = os.getenv(
+    "OUTREACH_SMS_TEMPLATE",
+    (
+        "Hi {name}, this is Eric from Katy's AI Answering Service! "
+        "We help service businesses like {business_name} capture every call and recover lost revenue — "
+        "starting at just $97/month. Reply STOP to opt out."
+    ),
+)
+
+OUTREACH_EMAIL_SUBJECT = os.getenv(
+    "OUTREACH_EMAIL_SUBJECT",
+    "Stop Losing Customers to Missed Calls — {business_name}",
+)
+
+OUTREACH_EMAIL_BODY = os.getenv(
+    "OUTREACH_EMAIL_BODY",
+    (
+        "Hi {name},\n\n"
+        "I noticed {business_name} might be losing revenue from missed calls. "
+        "Katy's AI Answering Service answers instantly 24/7, qualifies leads, and routes hot ones straight to you — "
+        "so you never miss another job.\n\n"
+        "Pricing starts at $500 setup + $97/month. "
+        "Reply to this email or call us back and I can walk you through the details.\n\n"
+        "Reply STOP to opt out.\n\n"
+        "Best,\n"
+        "Eric (AI Agent for Katy)"
+    ),
+)
+
 INCOMING_CALL_GUIDE = """
 INCOMING CALL GUIDE:
-- Disclose clearly you are Eric, an AI assistant for Katy's AI answering service.
-- State the opt-out clearly at the start: press 9 now to opt out, or say "stop" any time to opt out of future calls.
-- When you learn the business name, immediately call lookup_business to pull their details. Use what you find to personalize the conversation.
-- Focus first on understanding their business — ask about their call volume, how they currently handle calls, what services they offer, and their biggest pain point with missed calls.
+- The moment an INBOUND call connects, your FIRST action is to call lookup_caller with the caller's phone number.
+- If lookup_caller returns found=true (known contact):
+  - Greet them by name warmly and personally — do NOT re-introduce yourself as if it's a cold call.
+  - Example: "Hey {name}! Great to hear from you — how's {business_name} doing? Are things going well over there?"
+  - Reference what you know naturally to continue the conversation.
+- If lookup_caller returns found=false (new caller):
+  - Introduce yourself: "Hi, this is Eric, an AI assistant for Katy's AI Answering Service."
+  - State the opt-out: "You can say 'stop' at any time to opt out of future calls."
+  - Ask for their name and business name naturally — not as a robotic intake form.
+    Example: "I want to make sure I get you the right info — who am I speaking with, and what business are you calling about?"
+  - If their business niche is still unclear after learning the name, ask naturally:
+    Example: "Just so I know the best way to help — are you more in home services, healthcare, legal, or something else?"
+- After identifying the caller (new or returning), focus on understanding their business and call-handling situation.
+- When you learn the business name, also call lookup_business to enrich your context.
 - Explain value in plain terms: answer instantly, qualify leads, route next steps.
 - Keep it conversational and adaptive, not scripted.
 - Explain the onboarding process before mentioning payment or next steps.
@@ -86,12 +129,53 @@ CONVERSATION STYLE:
 - Conversational, concise, and human-like.
 - Ask, listen, respond.
 - No long monologues.
+
+BUYER INTENT SIGNAL DETECTION:
+Continuously listen for signals that indicate where the prospect is in their buying journey.
+HIGH INTENT signals: "how soon can I start", "what's the next step", "I want to get started",
+  "how much for my situation", "I've been thinking about this for a while", "I'm losing a lot of calls",
+  "we're really struggling with", "what do I need to do to sign up".
+MEDIUM INTENT signals: "tell me more", "what's included", "do you work with businesses like mine",
+  "how does it work", "I might be interested", "walk me through it".
+LOW INTENT signals: "just curious", "maybe someday", "not really a priority right now",
+  "we're doing fine", "we already have something", "not looking right now".
+When you detect HIGH INTENT, you can move toward a concrete next step. When you detect LOW or MEDIUM
+INTENT, focus on education and trust-building — not closing.
+
+EMOTIONAL INTELLIGENCE — READ THE ROOM:
+Detect the prospect's emotional state from their tone, word choice, and pacing. Adapt accordingly.
+
+FRUSTRATED (sounds stressed, complains about current situation):
+  → Slow down. Validate their experience before anything else.
+  → Use phrases like: "That's really frustrating — and honestly, you're not alone in that."
+  → Only offer a solution after they feel heard.
+
+EXCITED (high energy, asking lots of questions, positive):
+  → Match their energy. Be upbeat and confident.
+  → Move a bit faster — they're engaged. Don't slow down unnecessarily.
+
+SKEPTICAL (challenges claims, asks "how do I know", sarcastic tone):
+  → Be patient and transparent. Don't over-promise.
+  → Offer proof: "A lot of business owners feel that way at first — here's what actually happens..."
+  → Invite them to verify anything you say.
+
+RUSHED (short answers, says "I don't have long", sounds distracted):
+  → Keep it tight. Lead with the most important point.
+  → Offer to text or email details and follow up: "I can send you a quick summary — what's the best number?"
+
+UNCERTAIN / HESITANT (long pauses, vague answers, "I don't know"):
+  → Don't push for a decision. Give them breathing room.
+  → Offer low-commitment next steps: "No pressure at all — I can just send you something to look at."
+
+EMPATHY RULE: Before moving to the next topic, briefly acknowledge what the prospect just said.
+Never jump straight from their answer to your next question without a short acknowledgment first.
+Example: "Yeah, that makes total sense." / "I hear you." / "That's a fair point."
 """
 
 ONBOARDING_DISCOVERY = """
 DISCOVERY APPROACH — two types of information, handled differently:
 
-── ALREADY KNOW (from lookup_business — use it, don't ask for it) ──
+── ALREADY KNOW (from lookup_caller / lookup_business — use it, don't ask for it) ──
 - Business name, address, city
 - Business type / niche
 - Website, rating, reviews
@@ -122,6 +206,12 @@ These are the fields you need but can only learn from them:
 5. Email for setup coordination
    → Don't ask cold. Only ask once they show genuine interest: "What's the best email to send some details to?"
 
+SHEET ENRICHMENT — fill in the blanks throughout the call (non-pushy):
+As you naturally learn new details (owner name, email, business niche, services, location),
+silently call update_prospect_info to save them. Do this in the background — never tell the prospect
+you're "filling in a form" or ask multiple info questions in a row. The goal is to fill as many
+fields as possible in a single natural conversation without sounding like a survey.
+
 RULE: Never ask two questions back-to-back. Ask one, listen fully, respond to what they said, then naturally work in the next one if it fits.
 Once you have a clear picture of how they handle calls and what's costing them, THEN offer a concrete next step.
 """
@@ -134,13 +224,16 @@ LIVE CALL CONTROL RULES:
 - Never repeat a callback request back-to-back. Only ask once, then continue helping unless they explicitly agree.
 
 AVAILABLE COMMUNICATION TOOLS:
+- lookup_caller: Call IMMEDIATELY at the start of INBOUND calls with the caller's phone number to check if they're known.
+- send_outreach_message: Use to send the static pre-written outreach SMS or email to prospects. Useful after initial interest is shown.
+- update_prospect_info: Call silently whenever you learn a new detail (name, email, niche, etc.) to keep the sheet current.
 - send_sms: Use for quick confirmations, reminders, or simple messages. Always ask permission first.
 - send_email: Use for detailed follow-ups, contracts, or formal communication. Good for PDFs or formatted content.
 - send_business_details: Use to send a complete summary of what was discussed with pricing tiers.
 - send_demo_link: Use to send the demo and pricing page so they can review at their own pace.
 - send_payment_link: Use when the prospect is ready to pay - securely send payment link by their preferred channel.
 - schedule_callback: Use when they want to talk later with specific time/date.
-- save_notes: Use before every call end to capture outcome, temperature, objections, and next steps.
+- save_notes: Use before every call end to capture outcome, temperature, objections, emotional state, and next steps.
 
 TOOL CALL SEQUENCE:
 - If a prospect asks for details, collect delivery method (sms or email) and required contact info, then call send_business_details immediately.
@@ -257,6 +350,18 @@ def _assistant_tools(webhook_base_url: str, katy_phone: str, enable_transfer: bo
                         "requires_transfer": {"type": "boolean"},
                         "callback_time": {"type": "string"},
                         "opt_out": {"type": "boolean"},
+                        "emotional_state": {
+                            "type": "string",
+                            "description": "Detected emotional state of the prospect: frustrated, excited, skeptical, rushed, uncertain, or neutral",
+                        },
+                        "buyer_intent_level": {
+                            "type": "string",
+                            "description": "Assessed buyer intent level: high, medium, or low",
+                        },
+                        "discovered_info": {
+                            "type": "string",
+                            "description": "JSON string of any new prospect details discovered (owner_name, email, niche, etc.)",
+                        },
                     },
                     "required": ["business_name", "prospect_phone", "outcome", "temperature", "notes"],
                 },
@@ -356,6 +461,88 @@ def _assistant_tools(webhook_base_url: str, katy_phone: str, enable_transfer: bo
                 },
             },
             "server": {"url": f"{webhook_base_url}/vapi/send-email"},
+        },
+        {
+            "type": "function",
+            "function": {
+                "name": "lookup_caller",
+                "description": (
+                    "Look up the caller by their phone number at the START of an inbound call. "
+                    "Returns their name, business name, and any known details so you can greet them personally."
+                ),
+                "parameters": {
+                    "type": "object",
+                    "properties": {
+                        "phone": {"type": "string", "description": "The caller's phone number"},
+                    },
+                    "required": ["phone"],
+                },
+            },
+            "server": {"url": f"{webhook_base_url}/vapi/lookup-caller"},
+        },
+        {
+            "type": "function",
+            "function": {
+                "name": "send_outreach_message",
+                "description": (
+                    "Send a pre-written static outreach message to the prospect via SMS or email. "
+                    "Use this when the prospect expresses interest and you want to send them a concise written intro."
+                ),
+                "parameters": {
+                    "type": "object",
+                    "properties": {
+                        "delivery_method": {
+                            "type": "string",
+                            "description": "sms or email",
+                        },
+                        "prospect_phone": {
+                            "type": "string",
+                            "description": "Phone number (required when delivery_method=sms)",
+                        },
+                        "prospect_email": {
+                            "type": "string",
+                            "description": "Email address (required when delivery_method=email)",
+                        },
+                        "contact_name": {
+                            "type": "string",
+                            "description": "Prospect's first name for personalisation",
+                        },
+                        "business_name": {
+                            "type": "string",
+                            "description": "Prospect's business name for personalisation",
+                        },
+                    },
+                    "required": ["delivery_method"],
+                },
+            },
+            "server": {"url": f"{webhook_base_url}/vapi/send-outreach"},
+        },
+        {
+            "type": "function",
+            "function": {
+                "name": "update_prospect_info",
+                "description": (
+                    "Silently save any new details you learn about the prospect during the conversation "
+                    "(name, email, niche, business name, etc.) so the Google Sheet stays current. "
+                    "Call this in the background — the prospect should never know you're doing it."
+                ),
+                "parameters": {
+                    "type": "object",
+                    "properties": {
+                        "prospect_phone": {"type": "string", "description": "Caller's phone number (primary key)"},
+                        "business_name": {"type": "string"},
+                        "owner_name": {"type": "string"},
+                        "email": {"type": "string"},
+                        "niche": {"type": "string"},
+                        "location": {"type": "string"},
+                        "website": {"type": "string"},
+                        "services": {"type": "string"},
+                        "notes": {"type": "string", "description": "Any extra context worth capturing"},
+                    },
+                    "required": ["prospect_phone"],
+                },
+            },
+            "server": {"url": f"{webhook_base_url}/vapi/update-prospect-info"},
         },
     ]
 

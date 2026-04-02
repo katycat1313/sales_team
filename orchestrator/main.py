@@ -2201,6 +2201,17 @@ async def vapi_save_notes(body: dict):
         objections = params.get("objections", "")
         requires_transfer = params.get("requires_transfer", False)
         opt_out = bool(params.get("opt_out", False))
+        emotional_state = params.get("emotional_state", "")  # frustrated, excited, skeptical, rushed, uncertain, neutral
+        buyer_intent_level = params.get("buyer_intent_level", "")  # high, medium, low
+        discovered_info_raw = params.get("discovered_info", "")
+
+        # Parse any mid-call discovered info so we can enrich the prospect record
+        discovered_info: dict = {}
+        if discovered_info_raw:
+            try:
+                discovered_info = json.loads(discovered_info_raw) if isinstance(discovered_info_raw, str) else dict(discovered_info_raw)
+            except Exception:
+                pass
 
         from memory.memory import get_prospects, update_prospect, get_availability
         prospects = get_prospects()
@@ -2249,12 +2260,16 @@ async def vapi_save_notes(body: dict):
                 "temperature": temperature,
                 "notes": notes,
                 "objections": objections,
+                "emotional_state": emotional_state,
+                "buyer_intent_level": buyer_intent_level,
                 "called_at": datetime.now(timezone.utc).isoformat(),
                 "next_action": next_action,
             })
-            update_prospect(
+
+            # Build update kwargs — only override blank fields with discovered_info
+            update_kwargs: dict = dict(
                 business_name=match["business_name"],
-                location=match.get("location",""),
+                location=match.get("location", ""),
                 last_call_at=datetime.now(timezone.utc).isoformat(),
                 last_call_outcome=outcome,
                 call_result_summary=notes,
@@ -2275,6 +2290,12 @@ async def vapi_save_notes(body: dict):
                 dnc_source="vapi_eric" if opt_out else (match.get("dnc_source") or ""),
                 notes=notes_text,
             )
+            # Apply discovered_info — only fill fields that are currently blank on the record
+            for k, v in discovered_info.items():
+                if v and not match.get(k):
+                    update_kwargs[k] = v
+
+            update_prospect(**update_kwargs)
 
             if opt_out:
                 _record_dnc_entry(
@@ -2286,13 +2307,17 @@ async def vapi_save_notes(body: dict):
                 )
 
         action_emoji = {"transfer_now": "🤝", "schedule_callback": "📅", "do_not_call": "🛑", "retry": "🔄", "close": "✅"}.get(next_action, "—")
-        log_event("vapi", "action", f"Call saved: {business_name} — {outcome} ({temperature}) — {action_emoji} Next: {next_action}")
+        intent_tag = f" | intent={buyer_intent_level}" if buyer_intent_level else ""
+        emotion_tag = f" | emotion={emotional_state}" if emotional_state else ""
+        log_event("vapi", "action", f"Call saved: {business_name} — {outcome} ({temperature}){intent_tag}{emotion_tag} — {action_emoji} Next: {next_action}")
         log_compliance_event("call_outcomes", "saved", {
             "business_name": business_name,
             "prospect_phone": _normalize_phone(prospect_phone),
             "outcome": outcome,
             "next_action": next_action,
             "opt_out": opt_out,
+            "emotional_state": emotional_state,
+            "buyer_intent_level": buyer_intent_level,
         })
         return {"result": f"Notes saved. Next action: {next_action}"}
     except Exception as e:
@@ -2482,7 +2507,192 @@ async def vapi_send_email(body: dict):
         return {"result": f"I hit a technical issue sending the email. Error: {str(e)}"}
 
 
-@app.get("/vapi/active")
+@app.post("/vapi/lookup-caller")
+async def vapi_lookup_caller(body: dict):
+    """
+    Called by Eric at the start of an INBOUND call to identify the caller by phone number.
+    Checks Google Sheet → local DB.  Returns known prospect details or found=false for new callers.
+    """
+    try:
+        params = body.get("message", {}).get("functionCall", {}).get("parameters", body)
+        phone = params.get("phone", "").strip()
+
+        if not phone:
+            return {"result": json.dumps({"found": False, "reason": "No phone provided"})}
+
+        result: dict = {}
+
+        # 1. Local prospects DB
+        from memory.memory import get_prospects
+        prospects = get_prospects()
+        match = next((p for p in prospects if _phones_match(p.get("phone", ""), phone)), None)
+        if match:
+            result = {
+                "found": True,
+                "owner_name": match.get("owner_name", ""),
+                "business_name": match.get("business_name", ""),
+                "niche": match.get("niche", ""),
+                "location": match.get("location", ""),
+                "email": match.get("email", ""),
+                "website": match.get("website", ""),
+                "last_call_outcome": match.get("last_call_outcome", ""),
+                "call_temperature": match.get("call_temperature", ""),
+                "source": "local_db",
+            }
+
+        # 2. Google Sheet lookup (wins over DB for any field it fills)
+        lookup_url = os.getenv("BUSINESS_LOOKUP_URL", "")
+        if lookup_url and phone:
+            try:
+                import httpx
+                async with httpx.AsyncClient() as client:
+                    resp = await client.get(lookup_url, params={"phone": phone}, timeout=8)
+                    if resp.status_code == 200:
+                        sheet_data = resp.json()
+                        if sheet_data and sheet_data.get("found") is not False:
+                            result.update({k: v for k, v in sheet_data.items() if v})
+                            result["found"] = True
+                            result["source"] = "google_sheet"
+            except Exception as e:
+                log_event("vapi", "warn", f"lookup-caller: Sheet lookup failed: {e}")
+
+        if not result or not result.get("found"):
+            log_event("vapi", "action", f"lookup-caller: New caller from {phone}")
+            return {"result": json.dumps({"found": False, "phone": phone})}
+
+        log_event(
+            "vapi",
+            "action",
+            f"lookup-caller: Known caller — {result.get('owner_name', 'unknown')} @ {result.get('business_name', 'unknown')}",
+        )
+        return {"result": json.dumps(result)}
+
+    except Exception as e:
+        log_event("vapi", "warn", f"lookup-caller error: {e}")
+        return {"result": json.dumps({"found": False, "error": str(e)})}
+
+
+@app.post("/vapi/send-outreach")
+async def vapi_send_outreach(body: dict):
+    """
+    Eric calls this to deliver the static pre-written outreach SMS or email.
+    Templates are configurable via OUTREACH_SMS_TEMPLATE / OUTREACH_EMAIL_SUBJECT /
+    OUTREACH_EMAIL_BODY environment variables.
+    """
+    try:
+        from tools.vapi_tool import OUTREACH_SMS_TEMPLATE, OUTREACH_EMAIL_SUBJECT, OUTREACH_EMAIL_BODY
+        from tools.sms_tool import send_sms
+        from tools.gmail_tool import send_email
+
+        params = body.get("message", {}).get("functionCall", {}).get("parameters", body)
+        delivery_method = str(params.get("delivery_method", "sms")).strip().lower()
+        prospect_phone = params.get("prospect_phone", "")
+        prospect_email = params.get("prospect_email", "")
+        contact_name = params.get("contact_name", "") or "there"
+        business_name = params.get("business_name", "") or "your business"
+
+        template_vars = {"name": contact_name, "business_name": business_name}
+
+        if delivery_method == "email":
+            if not prospect_email:
+                return {"result": "I'd love to send that over — could you give me your email address?"}
+
+            subject = OUTREACH_EMAIL_SUBJECT.format(**template_vars)
+            email_body = OUTREACH_EMAIL_BODY.format(**template_vars)
+            res = send_email(
+                to=prospect_email,
+                subject=subject,
+                body=email_body,
+                from_name="Katy Team",
+                reply_to=os.getenv("GMAIL_ADDRESS", ""),
+            )
+            if res.get("sent"):
+                log_event("vapi", "action", f"Outreach email sent to {prospect_email} ({business_name})")
+                return {"result": f"Done — I just sent that over to {prospect_email}."}
+            err = res.get("error", "unknown error")
+            log_event("vapi", "thought", f"Outreach email failed: {err}")
+            return {"result": f"Email delivery ran into an issue. Want me to try SMS instead?"}
+
+        else:  # sms (default)
+            if not prospect_phone:
+                return {"result": "I can text that over — what's the best number to send it to?"}
+
+            sms_body = OUTREACH_SMS_TEMPLATE.format(**template_vars)
+            res = send_sms(to_number=prospect_phone, body=sms_body)
+            if res.get("sent"):
+                log_event("vapi", "action", f"Outreach SMS sent to {prospect_phone} ({business_name})")
+                return {"result": "Done — text is on its way."}
+            err = res.get("error", "unknown error")
+            log_event("vapi", "thought", f"Outreach SMS failed: {err}")
+            return {"result": "SMS ran into an issue. Want me to send it by email instead?"}
+
+    except Exception as e:
+        log_event("vapi", "thought", f"send-outreach error: {e}")
+        return {"result": f"I hit a technical issue sending that message. Error: {str(e)}"}
+
+
+@app.post("/vapi/update-prospect-info")
+async def vapi_update_prospect_info(body: dict):
+    """
+    Eric calls this silently during a call whenever new prospect details are learned.
+    Updates the local DB and syncs to Google Sheet.  Never visible to the prospect.
+    """
+    try:
+        params = body.get("message", {}).get("functionCall", {}).get("parameters", body)
+        prospect_phone = params.get("prospect_phone", "").strip()
+
+        if not prospect_phone:
+            return {"result": "ok"}
+
+        from memory.memory import get_prospects, update_prospect, save_prospect
+        prospects = get_prospects()
+        match = next((p for p in prospects if _phones_match(p.get("phone", ""), prospect_phone)), None)
+
+        update_fields = {}
+        for field in ("business_name", "owner_name", "email", "niche", "location", "website", "services"):
+            val = params.get(field, "").strip() if params.get(field) else ""
+            if val:
+                update_fields[field] = val
+
+        extra_notes = params.get("notes", "").strip()
+
+        if match:
+            # Merge new info — only fill blank fields, don't overwrite existing data
+            merged = {**match}
+            for k, v in update_fields.items():
+                if v and not merged.get(k):
+                    merged[k] = v
+            if extra_notes and not merged.get("notes"):
+                merged["notes"] = extra_notes
+
+            update_prospect(
+                business_name=merged.get("business_name", match["business_name"]),
+                location=merged.get("location", match.get("location", "")),
+                **{k: v for k, v in update_fields.items() if k not in ("business_name", "location")},
+                **({"notes": extra_notes} if extra_notes and not match.get("notes") else {}),
+            )
+            log_event(
+                "vapi",
+                "action",
+                f"update-prospect-info: enriched {match.get('business_name', prospect_phone)} — {list(update_fields.keys())}",
+            )
+        else:
+            # New prospect discovered mid-call — create the record
+            new_prospect = {
+                "phone": prospect_phone,
+                **update_fields,
+                **({"notes": extra_notes} if extra_notes else {}),
+                "pipeline_stage": "inbound_discovery",
+                "source": "vapi_inbound",
+            }
+            save_prospect(**new_prospect)
+            log_event("vapi", "action", f"update-prospect-info: new prospect created for {prospect_phone}")
+
+        return {"result": "ok"}
+
+    except Exception as e:
+        log_event("vapi", "warn", f"update-prospect-info error: {e}")
+        return {"result": "ok"}  # always return ok — never block the call
 async def vapi_active_calls():
     """Get currently active VAPI calls with their listen URLs."""
     import httpx
