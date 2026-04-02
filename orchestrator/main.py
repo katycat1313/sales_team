@@ -2569,7 +2569,7 @@ async def vapi_lookup_caller(body: dict):
 
     except Exception as e:
         log_event("vapi", "warn", f"lookup-caller error: {e}")
-        return {"result": json.dumps({"found": False, "error": str(e)})}
+        return {"result": json.dumps({"found": False, "error": "lookup failed"})}
 
 
 @app.post("/vapi/send-outreach")
@@ -2628,7 +2628,7 @@ async def vapi_send_outreach(body: dict):
 
     except Exception as e:
         log_event("vapi", "thought", f"send-outreach error: {e}")
-        return {"result": f"I hit a technical issue sending that message. Error: {str(e)}"}
+        return {"result": "I hit a technical issue sending that message. Please try again in a moment."}
 
 
 @app.post("/vapi/update-prospect-info")

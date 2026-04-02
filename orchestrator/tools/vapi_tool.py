@@ -505,11 +505,11 @@ def _assistant_tools(webhook_base_url: str, katy_phone: str, enable_transfer: bo
                         },
                         "contact_name": {
                             "type": "string",
-                            "description": "Prospect's first name for personalisation",
+                            "description": "Prospect's first name for personalization",
                         },
                         "business_name": {
                             "type": "string",
-                            "description": "Prospect's business name for personalisation",
+                            "description": "Prospect's business name for personalization",
                         },
                     },
                     "required": ["delivery_method"],

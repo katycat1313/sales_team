@@ -1,7 +1,7 @@
 """
 Tests for VAPI voice agent features:
 - Static SMS/email outreach templates
-- Caller lookup (inbound call personalisation)
+- Caller lookup (inbound call personalization)
 - Prospect mid-call enrichment (update_prospect_info)
 - Buyer intent + emotional state logging (save_notes)
 """
