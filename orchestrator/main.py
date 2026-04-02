@@ -2665,10 +2665,12 @@ async def vapi_update_prospect_info(body: dict):
             if extra_notes and not merged.get("notes"):
                 merged["notes"] = extra_notes
 
+            # Only pass through fields that were blank in the existing record (blank-fill).
+            blank_fill = {k: v for k, v in update_fields.items() if v and not match.get(k)}
             update_prospect(
                 business_name=merged.get("business_name", match["business_name"]),
                 location=merged.get("location", match.get("location", "")),
-                **{k: v for k, v in update_fields.items() if k not in ("business_name", "location")},
+                **{k: v for k, v in blank_fill.items() if k not in ("business_name", "location")},
                 **({"notes": extra_notes} if extra_notes and not match.get("notes") else {}),
             )
             log_event(

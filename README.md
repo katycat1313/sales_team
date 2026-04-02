@@ -296,6 +296,30 @@ pip install pytest
 python -m pytest tests/ -v
 ```
 
+### Demo Flow End-to-End Tests
+
+A dedicated test suite validates the full Vaspi/VAPI demo process at the HTTP
+handler boundary using mocked external integrations (no real network calls):
+
+```bash
+cd orchestrator
+python -m pytest tests/test_demo_e2e.py -v
+```
+
+This covers:
+1. **Known caller lookup** — Sheet/DB match returns `found=true` with name + business
+2. **Unknown caller lookup** — No match returns `found=false`, prompt guides intro flow
+3. **Enrichment** — `update-prospect-info` fills blank fields, never overwrites existing data
+4. **Outbound outreach** — SMS/email template rendering, routing, and graceful error handling
+5. **Intent + emotion** — Prompt structure for buyer intent levels and emotional states
+
+All 56 E2E tests + 37 unit tests can be run together:
+
+```bash
+cd orchestrator
+python -m pytest tests/ -v
+```
+
 ---
 
 ## Go-Live Checklist
