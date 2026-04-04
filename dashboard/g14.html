@@ -1,0 +1,182 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<title>G14 — Agent Server</title>
+<link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@300;400;500&family=Instrument+Serif:ital@1&display=swap" rel="stylesheet">
+<style>
+*{margin:0;padding:0;box-sizing:border-box}
+:root{
+  --void:#040406;--g1:#080810;--g2:#0e0e18;--g3:#141420;
+  --rim:rgba(255,255,255,.05);--rim2:rgba(255,255,255,.09);
+  --ink:#d8d8f0;--ink2:#7070a0;--ink3:#383860;
+  --green:#33ff88;--gold:#d4a843;--rose:#ff4466;--sky:#44aaff;--teal:#33ddbb;
+}
+html,body{height:100%;background:var(--void);color:var(--ink);font-family:'IBM Plex Mono',monospace;font-size:12px;overflow:hidden}
+body{display:grid;grid-template-rows:44px 1fr;grid-template-columns:1fr 1fr;grid-template-areas:"hdr hdr" "left right"}
+header{grid-area:hdr;background:var(--g1);border-bottom:1px solid var(--rim);display:flex;align-items:center;padding:0 20px;gap:20px}
+.hmark{font-family:'Instrument Serif',serif;font-style:italic;font-size:16px;color:var(--gold)}
+.hstat{display:flex;align-items:center;gap:6px;font-size:10px;color:var(--ink2)}
+.hdot{width:5px;height:5px;border-radius:50%}
+.htime{margin-left:auto;font-size:10px;color:var(--ink3)}
+.panel{background:var(--g1);border-right:1px solid var(--rim);border-top:none;overflow-y:auto;padding:16px}
+.panel::-webkit-scrollbar{width:3px}
+.panel::-webkit-scrollbar-thumb{background:var(--rim2)}
+.panel-r{background:var(--g1);overflow-y:auto;padding:16px}
+.sec{margin-bottom:20px}
+.sec-label{font-size:9px;letter-spacing:.18em;text-transform:uppercase;color:var(--ink3);margin-bottom:10px;padding-bottom:6px;border-bottom:1px solid var(--rim)}
+.agent-row{display:flex;align-items:center;gap:10px;padding:8px 10px;border-radius:6px;border:1px solid var(--rim);margin-bottom:6px;background:var(--g2)}
+.a-ico{font-size:16px}
+.a-name{font-weight:500;flex:1}
+.a-st{font-size:9px;letter-spacing:.06em}
+.orb{width:5px;height:5px;border-radius:50%;flex-shrink:0}
+@keyframes p{0%,100%{opacity:1}50%{opacity:.3}}
+.orb-on{animation:p 1.5s ease-in-out infinite}
+.a-stop{font-size:9px;padding:3px 8px;border-radius:4px;border:1px solid var(--rim2);background:transparent;color:var(--ink2);cursor:pointer;transition:all .15s}
+.a-stop:hover{border-color:var(--rose);color:var(--rose)}
+.metric{display:flex;justify-content:space-between;align-items:center;padding:8px 0;border-bottom:1px solid var(--rim)}
+.metric:last-child{border-bottom:none}
+.m-label{color:var(--ink2);font-size:10px}
+.m-val{color:var(--ink);font-weight:500}
+.m-green{color:var(--green)}
+.m-gold{color:var(--gold)}
+.m-rose{color:var(--rose)}
+.log{font-size:10px;color:var(--ink2);padding:4px 0;border-bottom:1px solid var(--rim);line-height:1.5}
+.log:last-child{border-bottom:none}
+.log-ok{color:var(--green)}
+.log-warn{color:var(--gold)}
+.log-err{color:var(--rose)}
+.log-info{color:var(--sky)}
+.cmd-row{display:flex;gap:6px;margin-bottom:8px;flex-wrap:wrap}
+.cmd{font-family:'IBM Plex Mono',monospace;font-size:9px;padding:5px 10px;border-radius:5px;border:1px solid var(--rim2);background:transparent;color:var(--ink2);cursor:pointer;transition:all .15s;letter-spacing:.04em}
+.cmd:hover{border-color:var(--gold);color:var(--gold)}
+.card{background:var(--g2);border:1px solid var(--rim);border-radius:8px;padding:14px;margin-bottom:8px}
+.big-num{font-family:'Instrument Serif',serif;font-style:italic;font-size:36px;line-height:1}
+.feed{max-height:280px;overflow-y:auto}
+.feed::-webkit-scrollbar{width:3px}
+.feed::-webkit-scrollbar-thumb{background:var(--rim2)}
+.fr{display:grid;grid-template-columns:46px 70px 1fr;gap:6px;padding:4px 0;border-bottom:1px solid var(--rim);font-size:9px}
+.fr-t{color:var(--ink3)}
+.fr-who{font-weight:500;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.fr-msg{color:var(--ink2);line-height:1.4}
+</style>
+</head>
+<body>
+<header>
+  <div class="hmark">G14</div>
+  <div class="hstat"><div class="hdot" style="background:var(--green);box-shadow:0 0 5px var(--green)"></div>orchestrator online</div>
+  <div class="hstat"><div class="hdot" style="background:var(--green);box-shadow:0 0 5px var(--green)"></div>telegram connected</div>
+  <div class="hstat" id="h-appr"><div class="hdot" style="background:var(--gold)"></div><span id="appr-count">checking...</span></div>
+  <div class="htime" id="clk"></div>
+</header>
+
+<div class="panel">
+  <div class="sec">
+    <div class="sec-label">Agents</div>
+    <div class="agent-row"><div class="orb orb-on" style="background:var(--teal);box-shadow:0 0 5px var(--teal)"></div><div class="a-ico">🧠</div><div class="a-name">coordinator</div><div class="a-st" style="color:var(--teal)" id="ast-coordinator">routing</div><button class="a-stop">stop</button></div>
+    <div class="agent-row"><div class="orb orb-on" style="background:var(--sky);box-shadow:0 0 5px var(--sky)"></div><div class="a-ico">🔍</div><div class="a-name">scout</div><div class="a-st" style="color:var(--sky)" id="ast-scout">searching</div><button class="a-stop">stop</button></div>
+    <div class="agent-row"><div class="orb" style="background:var(--gold)"></div><div class="a-ico">✉️</div><div class="a-name">outreach</div><div class="a-st" style="color:var(--gold)" id="ast-outreach">awaiting approval</div><button class="a-stop">stop</button></div>
+    <div class="agent-row"><div class="orb" style="background:var(--ink3)"></div><div class="a-ico">⚙️</div><div class="a-name">engineer</div><div class="a-st" style="color:var(--ink3)" id="ast-engineer">idle</div><button class="a-stop">stop</button></div>
+    <div class="agent-row"><div class="orb" style="background:var(--ink3)"></div><div class="a-ico">🎯</div><div class="a-name">coach</div><div class="a-st" style="color:var(--ink3)" id="ast-coach">idle</div><button class="a-stop">stop</button></div>
+  </div>
+
+  <div class="sec">
+    <div class="sec-label">Quick Commands</div>
+    <div class="cmd-row">
+      <button class="cmd" onclick="runTask('scout','Find AI developer jobs remote')">hunt jobs</button>
+      <button class="cmd" onclick="runTask('outreach','Draft recruiter outreach')">draft outreach</button>
+      <button class="cmd" onclick="runTask('coach','Interview prep session')">coach session</button>
+      <button class="cmd" onclick="runTask('coordinator','Give status update')">status</button>
+    </div>
+    <div class="cmd-row">
+      <button class="cmd" onclick="runTask('engineer','Review agent pipeline for issues')">code review</button>
+      <button class="cmd" style="border-color:var(--rose);color:var(--rose)" onclick="if(confirm('Restart all agents?'))location.reload()">restart all</button>
+    </div>
+  </div>
+
+  <div class="sec">
+    <div class="sec-label">System Metrics</div>
+    <div class="card">
+      <div class="metric"><span class="m-label">Orchestrator</span><span class="m-val m-green" id="m-online">checking...</span></div>
+      <div class="metric"><span class="m-label">Events logged</span><span class="m-val" id="m-events">—</span></div>
+      <div class="metric"><span class="m-label">Pending approvals</span><span class="m-val m-gold" id="m-appr">—</span></div>
+      <div class="metric"><span class="m-label">Jobs in memory</span><span class="m-val" id="m-jobs">—</span></div>
+      <div class="metric"><span class="m-label">Contacts found</span><span class="m-val" id="m-contacts">—</span></div>
+      <div class="metric"><span class="m-label">Brief loaded</span><span class="m-val m-green" id="m-brief">—</span></div>
+      <div class="metric"><span class="m-label">Scheduler</span><span class="m-val m-green">running</span></div>
+    </div>
+  </div>
+</div>
+
+<div class="panel-r">
+  <div class="sec">
+    <div class="sec-label">Memory Snapshot</div>
+    <div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:8px;margin-bottom:12px">
+      <div class="card" style="text-align:center"><div class="big-num m-green" id="snap-jobs">—</div><div style="font-size:9px;color:var(--ink3);margin-top:4px;letter-spacing:.08em">JOBS</div></div>
+      <div class="card" style="text-align:center"><div class="big-num m-gold" id="snap-contacts">—</div><div style="font-size:9px;color:var(--ink3);margin-top:4px;letter-spacing:.08em">CONTACTS</div></div>
+      <div class="card" style="text-align:center"><div class="big-num" id="snap-tasks" style="color:var(--sky)">—</div><div style="font-size:9px;color:var(--ink3);margin-top:4px;letter-spacing:.08em">TODAY</div></div>
+    </div>
+  </div>
+
+  <div class="sec">
+    <div class="sec-label">Live Event Feed</div>
+    <div class="feed" id="g14-feed"></div>
+  </div>
+
+  <div class="sec">
+    <div class="sec-label">Recent Logs</div>
+    <div id="log-list">
+      <div class="log"><span class="log-ok">OK  </span> Agent team started — all 5 agents online</div>
+      <div class="log"><span class="log-info">INFO</span> Proactive scheduler activated — next run 07:00</div>
+      <div class="log"><span class="log-info">INFO</span> Scout: job search completed — 14 roles found</div>
+      <div class="log"><span class="log-warn">WARN</span> Outreach: approval queue has 2 pending items</div>
+    </div>
+  </div>
+</div>
+
+<script>
+const API='http://localhost:8000';
+let lastId=0;
+setInterval(()=>document.getElementById('clk').textContent=new Date().toLocaleTimeString(),1000);
+const aC={coordinator:'var(--teal)',scout:'var(--sky)',outreach:'var(--gold)',engineer:'var(--ink2)',coach:'var(--green)',katy:'var(--gold)',system:'var(--ink3)'};
+async function pollStatus(){
+  try{
+    const r=await fetch(`${API}/status`);const d=await r.json();
+    document.getElementById('m-online').textContent='online';
+    document.getElementById('m-events').textContent=d.events_logged;
+    document.getElementById('m-appr').textContent=d.pending_approvals;
+    document.getElementById('m-brief').textContent=d.brief_loaded?'loaded':'missing';
+    document.getElementById('appr-count').textContent=d.pending_approvals>0?`${d.pending_approvals} pending approvals`:'no pending approvals';
+    if(d.memory){
+      document.getElementById('m-jobs').textContent=d.memory.jobs_total;
+      document.getElementById('m-contacts').textContent=d.memory.contacts_total;
+      document.getElementById('snap-jobs').textContent=d.memory.jobs_total;
+      document.getElementById('snap-contacts').textContent=d.memory.contacts_total;
+      document.getElementById('snap-tasks').textContent=d.memory.tasks_today;
+    }
+  }catch(e){document.getElementById('m-online').textContent='offline';document.getElementById('m-online').className='m-val m-rose';}
+}
+async function pollEvents(){
+  try{
+    const r=await fetch(`${API}/events?since_id=${lastId}`);const evs=await r.json();
+    if(evs.length){
+      const feed=document.getElementById('g14-feed');
+      evs.forEach(ev=>{
+        lastId=ev.id;
+        const t=new Date(ev.timestamp).toLocaleTimeString([],{hour:'2-digit',minute:'2-digit',second:'2-digit'});
+        const row=document.createElement('div');row.className='fr';
+        row.innerHTML=`<span class="fr-t">${t}</span><span class="fr-who" style="color:${aC[ev.agent]||'var(--ink2)'}">${ev.agent}</span><span class="fr-msg">${ev.content}</span>`;
+        feed.appendChild(row);while(feed.children.length>60)feed.removeChild(feed.firstChild);feed.scrollTop=feed.scrollHeight;
+        const ast=document.getElementById('ast-'+ev.agent);if(ast)ast.textContent=ev.type==='thought'?'thinking...':ev.type==='result'?'done':ev.type;
+      });
+    }
+  }catch(e){}
+}
+async function runTask(agent,task){
+  try{await fetch(`${API}/task`,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({task,agent})});}
+  catch(e){alert('Cannot reach orchestrator');}
+}
+pollStatus();setInterval(pollStatus,8000);setInterval(pollEvents,2500);
+</script>
+</body>
+</html>

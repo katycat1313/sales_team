@@ -1,0 +1,359 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>KATY — Agent Command</title>
+<link href="https://fonts.googleapis.com/css2?family=Instrument+Serif:ital@0;1&family=IBM+Plex+Mono:wght@300;400;500&family=DM+Sans:ital,opsz,wght@0,9..40,300;0,9..40,400;0,9..40,500;1,9..40,300&display=swap" rel="stylesheet">
+<style>
+*{margin:0;padding:0;box-sizing:border-box}
+:root{
+  --void:#060608;--g1:#0c0c10;--g2:#12121a;--g3:#181824;--g4:#1e1e2e;--g5:#252538;
+  --rim:rgba(255,255,255,0.055);--rim2:rgba(255,255,255,0.10);--rim3:rgba(255,255,255,0.18);
+  --ink:#eeeef8;--ink2:#9090b8;--ink3:#50507a;--ink4:#2a2a48;
+  --gold:#d4a843;--gold2:#f0c86a;--gold3:rgba(212,168,67,0.12);
+  --teal:#3ecfb2;--teal2:rgba(62,207,178,0.12);
+  --violet:#8b6ef5;--violet2:rgba(139,110,245,0.12);
+  --rose:#f0607a;--rose2:rgba(240,96,122,0.12);
+  --sky:#5aaef0;--sky2:rgba(90,174,240,0.12);
+  --ember:#f09044;--ember2:rgba(240,144,68,0.12);
+  --green:#44e888;--green2:rgba(68,232,136,0.12);
+  --r:10px;--r2:16px;
+}
+html,body{height:100%;background:var(--void);color:var(--ink);font-family:'DM Sans',sans-serif;overflow:hidden}
+body{display:grid;grid-template-columns:56px 1fr}
+.rail{background:var(--g1);border-right:1px solid var(--rim);display:flex;flex-direction:column;align-items:center;padding:18px 0 16px;gap:2px;z-index:20}
+.rail-mark{font-family:'Instrument Serif',serif;font-style:italic;font-size:18px;color:var(--gold);margin-bottom:22px}
+.ri{position:relative;width:40px;height:40px;border-radius:9px;display:flex;align-items:center;justify-content:center;cursor:pointer;color:var(--ink4);font-size:15px;transition:all .18s;border:1px solid transparent;user-select:none}
+.ri:hover{color:var(--ink2);background:var(--g2)}
+.ri.on{color:var(--ink);background:var(--g3);border-color:var(--rim2)}
+.ri .tt{position:absolute;left:48px;top:50%;transform:translateY(-50%);background:var(--g4);border:1px solid var(--rim3);padding:5px 10px;border-radius:6px;font-family:'IBM Plex Mono',monospace;font-size:10px;color:var(--ink2);white-space:nowrap;pointer-events:none;opacity:0;transition:opacity .12s;z-index:100;letter-spacing:.04em}
+.ri:hover .tt{opacity:1}
+.ri-pip{position:absolute;top:7px;right:7px;width:5px;height:5px;border-radius:50%;background:var(--gold);box-shadow:0 0 5px var(--gold)}
+.rail-sep{width:24px;height:1px;background:var(--rim);margin:6px 0}
+.rail-bot{margin-top:auto;display:flex;flex-direction:column;align-items:center;gap:2px}
+.content{position:relative;overflow:hidden}
+.pg{position:absolute;inset:0;overflow-y:auto;display:none;animation:pgIn .22s ease}
+.pg.on{display:block}
+@keyframes pgIn{from{opacity:0;transform:translateY(6px)}to{opacity:1;transform:translateY(0)}}
+.pg::-webkit-scrollbar{width:3px}
+.pg::-webkit-scrollbar-thumb{background:var(--rim2);border-radius:2px}
+.pg-inner{padding:36px 40px;min-height:100%}
+.eyebrow{font-family:'IBM Plex Mono',monospace;font-size:9px;letter-spacing:.22em;text-transform:uppercase;color:var(--ink3);margin-bottom:6px}
+.headline{font-family:'Instrument Serif',serif;font-style:italic;font-size:52px;line-height:.95;color:var(--ink);margin-bottom:6px;letter-spacing:-.02em}
+.sub{font-size:13px;color:var(--ink3);margin-bottom:32px;font-weight:300}
+.sl{font-family:'IBM Plex Mono',monospace;font-size:9px;letter-spacing:.18em;text-transform:uppercase;color:var(--ink3);margin-bottom:12px;display:flex;align-items:center;gap:10px}
+.sl::after{content:'';flex:1;height:1px;background:var(--rim)}
+.card{background:var(--g1);border:1px solid var(--rim);border-radius:var(--r2);padding:20px;transition:border-color .18s}
+.card:hover{border-color:var(--rim2)}
+.stats{display:flex;gap:10px;margin-bottom:28px;flex-wrap:wrap}
+.stat{background:var(--g1);border:1px solid var(--rim);border-radius:var(--r);padding:12px 18px;display:flex;align-items:center;gap:14px}
+.stat-v{font-family:'Instrument Serif',serif;font-size:32px;letter-spacing:-.02em;line-height:1}
+.stat-l{font-family:'IBM Plex Mono',monospace;font-size:9px;letter-spacing:.12em;text-transform:uppercase;color:var(--ink3)}
+.agents{display:grid;grid-template-columns:repeat(5,1fr);gap:8px;margin-bottom:28px}
+.ac{background:var(--g1);border:1px solid var(--rim);border-radius:var(--r2);padding:16px 14px;cursor:pointer;transition:all .18s;position:relative;overflow:hidden}
+.ac:hover{border-color:var(--rim2);transform:translateY(-1px)}
+.ac.live{border-top:2px solid}
+.ac-glow{position:absolute;top:-20px;right:-20px;width:80px;height:80px;border-radius:50%;opacity:.06;pointer-events:none}
+.ac-ico{font-size:22px;margin-bottom:10px;display:block}
+.ac-name{font-size:12px;font-weight:500;margin-bottom:2px}
+.ac-role{font-size:10px;color:var(--ink3);line-height:1.4;margin-bottom:10px;font-weight:300}
+.ac-st{display:flex;align-items:center;gap:5px;font-family:'IBM Plex Mono',monospace;font-size:9px;letter-spacing:.04em}
+.orb{width:5px;height:5px;border-radius:50%;flex-shrink:0}
+.orb-off{background:var(--ink4)}
+.orb-on{animation:orbP 1.6s ease-in-out infinite}
+.orb-warn{background:var(--gold)}
+@keyframes orbP{0%,100%{opacity:1}50%{opacity:.3}}
+.feed-wrap{background:var(--g1);border:1px solid var(--rim);border-radius:var(--r2);overflow:hidden;margin-bottom:28px}
+.feed-top{display:flex;align-items:center;padding:12px 18px;border-bottom:1px solid var(--rim);gap:10px}
+.feed-top-t{font-family:'IBM Plex Mono',monospace;font-size:9px;letter-spacing:.16em;text-transform:uppercase;color:var(--ink3)}
+.live-b{display:flex;align-items:center;gap:5px;margin-left:auto;font-family:'IBM Plex Mono',monospace;font-size:9px;color:var(--teal)}
+.live-o{width:5px;height:5px;border-radius:50%;background:var(--teal);box-shadow:0 0 5px var(--teal);animation:orbP 1.6s ease-in-out infinite}
+.feed-rows{max-height:200px;overflow-y:auto}
+.feed-rows::-webkit-scrollbar{width:3px}
+.feed-rows::-webkit-scrollbar-thumb{background:var(--rim2)}
+.fr{display:grid;grid-template-columns:52px 80px 8px 64px 1fr;gap:8px;padding:6px 18px;align-items:start;transition:background .1s;animation:frIn .25s ease}
+@keyframes frIn{from{opacity:0;transform:translateX(-4px)}to{opacity:1;transform:translateX(0)}}
+.fr:hover{background:var(--g2)}
+.fr-t{font-family:'IBM Plex Mono',monospace;font-size:9px;color:var(--ink4);padding-top:3px}
+.fr-who{font-family:'IBM Plex Mono',monospace;font-size:9px;font-weight:500;padding-top:3px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.fr-bar{width:2px;border-radius:1px;align-self:stretch;min-height:14px;margin-top:3px}
+.fr-tag{font-family:'IBM Plex Mono',monospace;font-size:8px;padding:2px 5px;border-radius:4px;letter-spacing:.04em;white-space:nowrap;margin-top:2px}
+.fr-msg{font-size:11px;color:var(--ink2);line-height:1.5;font-weight:300}
+.chat{background:var(--g1);border:1px solid var(--rim);border-radius:var(--r2);padding:16px}
+.chips{display:flex;gap:5px;flex-wrap:wrap;margin-bottom:12px}
+.chip{font-family:'IBM Plex Mono',monospace;font-size:9px;padding:4px 10px;border-radius:20px;border:1px solid var(--rim2);color:var(--ink3);cursor:pointer;transition:all .15s;background:transparent;letter-spacing:.04em}
+.chip:hover{border-color:var(--gold);color:var(--gold)}
+.chat-row{display:flex;gap:8px}
+.chat-sel{background:var(--g2);border:1px solid var(--rim);color:var(--ink2);font-family:'IBM Plex Mono',monospace;font-size:10px;padding:9px 10px;border-radius:8px;outline:none}
+.chat-in{flex:1;background:var(--g2);border:1px solid var(--rim);color:var(--ink);font-family:'DM Sans',sans-serif;font-size:12px;padding:9px 14px;border-radius:8px;outline:none;transition:border-color .15s;font-weight:300}
+.chat-in:focus{border-color:var(--gold)}
+.chat-in::placeholder{color:var(--ink4)}
+.send-btn{background:var(--gold);border:none;color:#1a0f00;font-family:'DM Sans',sans-serif;font-size:12px;font-weight:500;padding:9px 18px;border-radius:8px;cursor:pointer;transition:all .15s}
+.send-btn:hover{background:var(--gold2)}
+.send-btn:disabled{opacity:.4;cursor:not-allowed}
+.appr{background:var(--g1);border:1px solid var(--rim);border-left:3px solid var(--gold);border-radius:var(--r2);padding:18px;margin-bottom:8px;animation:frIn .25s ease}
+.appr-who{font-family:'IBM Plex Mono',monospace;font-size:9px;color:var(--gold);letter-spacing:.1em;text-transform:uppercase;margin-bottom:6px}
+.appr-action{font-size:14px;margin-bottom:4px}
+.appr-detail{font-size:11px;color:var(--ink3);margin-bottom:14px;line-height:1.6;font-weight:300}
+.appr-btns{display:flex;gap:8px}
+.btn-y{flex:1;padding:8px;border-radius:8px;border:1px solid var(--teal);background:var(--teal2);color:var(--teal);font-family:'IBM Plex Mono',monospace;font-size:10px;cursor:pointer;transition:all .15s}
+.btn-y:hover{background:rgba(62,207,178,.22)}
+.btn-n{flex:1;padding:8px;border-radius:8px;border:1px solid var(--rim2);background:transparent;color:var(--ink3);font-family:'IBM Plex Mono',monospace;font-size:10px;cursor:pointer;transition:all .15s}
+.btn-n:hover{border-color:var(--rose);color:var(--rose)}
+.intel{background:var(--g1);border:1px solid var(--rim);border-radius:var(--r);padding:14px;cursor:pointer;transition:all .18s}
+.intel:hover{border-color:var(--rim2);transform:translateX(2px)}
+.intel-badge{display:inline-block;font-family:'IBM Plex Mono',monospace;font-size:8px;padding:2px 7px;border-radius:4px;margin-bottom:8px;letter-spacing:.08em;text-transform:uppercase}
+.intel-title{font-size:13px;margin-bottom:3px}
+.intel-meta{font-family:'IBM Plex Mono',monospace;font-size:9px;color:var(--ink3);letter-spacing:.04em}
+.mission{background:var(--g1);border:1px solid var(--rim);border-radius:var(--r2);padding:18px;margin-bottom:8px}
+.mission-hdr{display:flex;align-items:center;gap:10px;margin-bottom:12px}
+.mission-title{font-size:14px;flex:1}
+.mission-badge{font-family:'IBM Plex Mono',monospace;font-size:9px;padding:3px 8px;border-radius:5px;letter-spacing:.06em}
+.prog{height:2px;background:var(--g4);border-radius:1px;margin-bottom:8px;overflow:hidden}
+.prog-fill{height:100%;border-radius:1px;transition:width .6s ease}
+.mission-meta{font-family:'IBM Plex Mono',monospace;font-size:9px;color:var(--ink3);display:flex;justify-content:space-between;letter-spacing:.04em}
+.pb{background:var(--g1);border:1px solid var(--rim);border-radius:var(--r2);padding:18px;cursor:pointer;transition:all .18s;position:relative;overflow:hidden}
+.pb:hover{border-color:var(--rim3);transform:translateY(-2px)}
+.pb::after{content:'launch →';position:absolute;bottom:14px;right:16px;font-family:'IBM Plex Mono',monospace;font-size:9px;color:var(--ink4);transition:color .18s;letter-spacing:.06em}
+.pb:hover::after{color:var(--gold)}
+.pb-ico{font-size:26px;margin-bottom:10px}
+.pb-name{font-size:13px;font-weight:500;margin-bottom:4px}
+.pb-desc{font-size:11px;color:var(--ink3);line-height:1.55;margin-bottom:22px;font-weight:300}
+.pb-tags{display:flex;gap:4px;flex-wrap:wrap}
+.pb-tag{font-family:'IBM Plex Mono',monospace;font-size:8px;padding:2px 6px;border-radius:4px;background:var(--g3);color:var(--ink3);letter-spacing:.04em}
+.team{background:var(--g1);border:1px solid var(--rim);border-radius:var(--r2);padding:20px;margin-bottom:8px}
+.team-hdr{display:flex;align-items:flex-start;gap:14px;margin-bottom:16px}
+.team-bar{width:3px;border-radius:2px;flex-shrink:0;margin-top:4px;height:40px}
+.team-name{font-family:'Instrument Serif',serif;font-style:italic;font-size:22px;letter-spacing:-.01em}
+.team-desc{font-size:11px;color:var(--ink3);margin-top:3px;font-weight:300}
+.team-members{display:flex;gap:8px;flex-wrap:wrap}
+.tm{display:flex;align-items:center;gap:8px;background:var(--g2);border:1px solid var(--rim);border-radius:8px;padding:8px 12px}
+.tm-ico{font-size:16px}
+.tm-name{font-size:12px}
+.tm-role{font-family:'IBM Plex Mono',monospace;font-size:9px;color:var(--ink3);letter-spacing:.04em}
+.srow{display:flex;align-items:center;gap:16px;padding:16px 0;border-bottom:1px solid var(--rim)}
+.srow:last-child{border-bottom:none}
+.sinfo{flex:1}
+.slabel{font-size:13px;margin-bottom:3px}
+.sdesc{font-size:11px;color:var(--ink3);font-weight:300}
+.tog{width:38px;height:20px;border-radius:10px;background:var(--g4);border:1px solid var(--rim2);position:relative;cursor:pointer;transition:background .2s;flex-shrink:0}
+.tog.on{background:var(--teal)}
+.tog::after{content:'';position:absolute;top:2px;left:2px;width:14px;height:14px;border-radius:50%;background:white;transition:transform .2s}
+.tog.on::after{transform:translateX(18px)}
+.sinput{background:var(--g2);border:1px solid var(--rim);color:var(--ink);font-family:'IBM Plex Mono',monospace;font-size:10px;padding:7px 10px;border-radius:6px;outline:none;width:180px;letter-spacing:.04em}
+.kb{background:var(--g1);border:1px solid var(--rim);border-radius:var(--r2);padding:20px;margin-bottom:10px}
+.kb-head{font-family:'Instrument Serif',serif;font-style:italic;font-size:22px;margin-bottom:14px;letter-spacing:-.01em}
+.kb-field{margin-bottom:12px}
+.kb-fl{font-family:'IBM Plex Mono',monospace;font-size:9px;letter-spacing:.14em;text-transform:uppercase;color:var(--ink3);margin-bottom:5px}
+.kb-fv{font-size:12px;color:var(--ink2);background:var(--g2);border:1px solid var(--rim);border-radius:7px;padding:10px 12px;line-height:1.6;font-weight:300}
+.kb-tag{display:inline-block;font-family:'IBM Plex Mono',monospace;font-size:9px;padding:3px 8px;border-radius:5px;background:var(--g3);border:1px solid var(--rim2);color:var(--ink2);margin:2px;letter-spacing:.04em}
+.log-row{display:grid;grid-template-columns:90px 52px 1fr;gap:10px;padding:7px 0;border-bottom:1px solid var(--rim);font-family:'IBM Plex Mono',monospace;font-size:10px;align-items:start}
+.log-t{color:var(--ink4)}
+.log-ok{color:var(--green)}
+.log-info{color:var(--sky)}
+.log-warn{color:var(--gold)}
+.log-err{color:var(--rose)}
+.log-msg{color:var(--ink2);line-height:1.5;font-weight:300}
+.sess{background:var(--g1);border:1px solid var(--rim);border-radius:var(--r2);padding:20px;display:flex;align-items:center;gap:16px;margin-bottom:8px}
+.sess-ico{font-size:28px}
+.sess-info{flex:1}
+.sess-name{font-size:14px;font-weight:500;margin-bottom:3px}
+.sess-status{font-family:'IBM Plex Mono',monospace;font-size:9px}
+.sess-btn{font-family:'IBM Plex Mono',monospace;font-size:9px;padding:7px 14px;border-radius:7px;border:1px solid var(--rim2);background:transparent;color:var(--ink2);cursor:pointer;transition:all .15s;letter-spacing:.06em}
+.sess-btn:hover{border-color:var(--gold);color:var(--gold)}
+.sess-btn.ok{border-color:var(--teal);color:var(--teal)}
+.g2{display:grid;grid-template-columns:1fr 1fr;gap:10px}
+.mb8{margin-bottom:8px}.mb16{margin-bottom:16px}.mb24{margin-bottom:24px}.mb28{margin-bottom:28px}.mb32{margin-bottom:32px}
+.empty{text-align:center;padding:40px 20px;color:var(--ink4);font-family:'IBM Plex Mono',monospace;font-size:10px;letter-spacing:.08em;line-height:2.4}
+.c-gold{color:var(--gold)}.c-teal{color:var(--teal)}.c-violet{color:var(--violet)}.c-sky{color:var(--sky)}.c-ember{color:var(--ember)}.c-green{color:var(--green)}.c-ink3{color:var(--ink3)}
+</style>
+</head>
+<body>
+<nav class="rail">
+  <div class="rail-mark">K</div>
+  <div class="ri on" onclick="nav('home',this)">⌂<div class="tt">home</div></div>
+  <div class="ri" onclick="nav('missions',this)">◎<div class="tt">missions</div><div class="ri-pip"></div></div>
+  <div class="ri" onclick="nav('outbox',this)">⬡<div class="tt">outbox</div><div class="ri-pip"></div></div>
+  <div class="ri" onclick="nav('intel',this)">◈<div class="tt">intel</div></div>
+  <div class="ri" onclick="nav('playbook',this)">▷<div class="tt">playbook</div></div>
+  <div class="rail-sep"></div>
+  <div class="ri" onclick="nav('teams',this)">⬡<div class="tt">teams</div></div>
+  <div class="ri" onclick="nav('browser',this)">⊕<div class="tt">browser</div></div>
+  <div class="rail-bot">
+    <div class="ri" onclick="nav('knowledge',this)">❋<div class="tt">knowledge</div></div>
+    <div class="ri" onclick="nav('logs',this)">≡<div class="tt">logs</div></div>
+    <div class="ri" onclick="nav('settings',this)">⚙<div class="tt">settings</div></div>
+  </div>
+</nav>
+<div class="content">
+
+<div class="pg on" id="pg-home"><div class="pg-inner">
+  <div class="eyebrow" id="greet">good morning, katy</div>
+  <div class="headline">Command<br>Center</div>
+  <div class="sub">Your agent team is active and working.</div>
+  <div class="stats mb24">
+    <div class="stat"><div class="stat-v c-teal">5</div><div class="stat-l">agents<br>online</div></div>
+    <div class="stat"><div class="stat-v c-gold" id="s-appr">—</div><div class="stat-l">pending<br>approvals</div></div>
+    <div class="stat"><div class="stat-v c-violet" id="s-jobs">—</div><div class="stat-l">jobs in<br>memory</div></div>
+    <div class="stat"><div class="stat-v c-sky" id="s-contacts">—</div><div class="stat-l">contacts<br>found</div></div>
+    <div class="stat"><div class="stat-v c-ink3" id="s-events">0</div><div class="stat-l">events<br>logged</div></div>
+  </div>
+  <div class="sl mb16">agent status</div>
+  <div class="agents mb28">
+    <div class="ac live" style="border-top-color:var(--violet)"><div class="ac-glow" style="background:var(--violet)"></div><span class="ac-ico">🧠</span><div class="ac-name">Coordinator</div><div class="ac-role">Routes tasks, synthesizes findings</div><div class="ac-st"><div class="orb orb-on" style="background:var(--violet);box-shadow:0 0 5px var(--violet)"></div><span class="c-violet" id="st-coordinator">routing</span></div></div>
+    <div class="ac live" style="border-top-color:var(--sky)"><div class="ac-glow" style="background:var(--sky)"></div><span class="ac-ico">🔍</span><div class="ac-name">Scout</div><div class="ac-role">Job hunting and recruiter research</div><div class="ac-st"><div class="orb orb-on" style="background:var(--sky);box-shadow:0 0 5px var(--sky)"></div><span class="c-sky" id="st-scout">searching</span></div></div>
+    <div class="ac"><span class="ac-ico">✉️</span><div class="ac-name">Outreach</div><div class="ac-role">Emails, DMs, follow-ups</div><div class="ac-st"><div class="orb orb-warn"></div><span class="c-gold" id="st-outreach">approval needed</span></div></div>
+    <div class="ac"><span class="ac-ico">⚙️</span><div class="ac-name">Engineer</div><div class="ac-role">Code review and debugging</div><div class="ac-st"><div class="orb orb-off"></div><span class="c-ink3" id="st-engineer">idle</span></div></div>
+    <div class="ac"><span class="ac-ico">🎯</span><div class="ac-name">Coach</div><div class="ac-role">Interview prep and guidance</div><div class="ac-st"><div class="orb orb-off"></div><span class="c-ink3" id="st-coach">idle</span></div></div>
+  </div>
+  <div class="sl mb16">live feed</div>
+  <div class="feed-wrap mb28"><div class="feed-top"><div class="feed-top-t">event stream</div><div class="live-b"><div class="live-o"></div>live</div></div><div class="feed-rows" id="feed"></div></div>
+  <div class="sl mb16">message your team</div>
+  <div class="chat">
+    <div class="chips">
+      <button class="chip" onclick="quick('scout','Find the best AI developer jobs remote right now')">🔍 hunt jobs</button>
+      <button class="chip" onclick="quick('outreach','Draft cold outreach to an AI startup recruiter')">✉️ draft outreach</button>
+      <button class="chip" onclick="quick('coach','Interview prep for AI developer roles')">🎯 prep me</button>
+      <button class="chip" onclick="quick('engineer','Review my agent pipeline for issues')">⚙️ code review</button>
+      <button class="chip" onclick="quick('coordinator','Give me a full status update')">📊 status</button>
+    </div>
+    <div class="chat-row">
+      <select class="chat-sel" id="chat-who"><option>coordinator</option><option>scout</option><option>outreach</option><option>engineer</option><option>coach</option></select>
+      <input class="chat-in" id="chat-in" placeholder="Tell your team what to do..." onkeydown="if(event.key==='Enter')sendMsg()">
+      <button class="send-btn" id="send-b" onclick="sendMsg()">Send →</button>
+    </div>
+  </div>
+</div></div>
+
+<div class="pg" id="pg-missions"><div class="pg-inner">
+  <div class="eyebrow">active work</div><div class="headline">Missions</div><div class="sub">Ongoing tasks your agents are running.</div>
+  <div class="mission"><div class="mission-hdr"><div class="mission-title">🔍 Weekly job hunt — AI developer roles</div><div class="mission-badge" style="background:var(--teal2);color:var(--teal);border:1px solid rgba(62,207,178,.25)">running</div></div><div class="prog"><div class="prog-fill" style="width:68%;background:var(--teal)"></div></div><div class="mission-meta"><span>Scout · Coordinator</span><span>14 found · 68%</span></div></div>
+  <div class="mission"><div class="mission-hdr"><div class="mission-title">✉️ Recruiter outreach — Wellfound batch</div><div class="mission-badge" style="background:var(--gold3);color:var(--gold);border:1px solid rgba(212,168,67,.25)">approval needed</div></div><div class="prog"><div class="prog-fill" style="width:90%;background:var(--gold)"></div></div><div class="mission-meta"><span>Outreach · Scout</span><span>5 drafts ready</span></div></div>
+  <div class="mission"><div class="mission-hdr"><div class="mission-title">🎯 Interview prep — Solutions Engineer</div><div class="mission-badge" style="background:var(--violet2);color:var(--violet);border:1px solid rgba(139,110,245,.25)">scheduled</div></div><div class="prog"><div class="prog-fill" style="width:0%;background:var(--violet)"></div></div><div class="mission-meta"><span>Coach</span><span>starts tomorrow 9am</span></div></div>
+  <div style="margin-top:20px"><button class="send-btn" style="width:100%;padding:12px;border-radius:10px;font-size:12px">+ New Mission</button></div>
+</div></div>
+
+<div class="pg" id="pg-outbox"><div class="pg-inner">
+  <div class="eyebrow">needs your ok</div><div class="headline">Outbox</div><div class="sub">Everything waiting for your approval.</div>
+  <div id="outbox-list">
+    <div class="appr"><div class="appr-who">✉️ outreach agent</div><div class="appr-action">Send cold email to recruiter at Hugging Face</div><div class="appr-detail">Subject: "AI developer with shipped multi-agent pipeline" · 4 sentences · personalized</div><div class="appr-btns"><button class="btn-y">✓ approve &amp; send</button><button class="btn-n">✗ reject</button></div></div>
+    <div class="appr"><div class="appr-who">🔍 scout agent</div><div class="appr-action">Submit application — AI Implementation Specialist @ Synthesia</div><div class="appr-detail">$65k · Remote · Strong match · Resume auto-tailored</div><div class="appr-btns"><button class="btn-y">✓ approve &amp; submit</button><button class="btn-n">✗ reject</button></div></div>
+  </div>
+</div></div>
+
+<div class="pg" id="pg-intel"><div class="pg-inner">
+  <div class="eyebrow">agent research</div><div class="headline">Intel</div><div class="sub">Everything your agents have found and saved.</div>
+  <div class="sl mb16">top job matches</div>
+  <div class="g2 mb24">
+    <div class="intel"><div class="intel-badge" style="background:var(--teal2);color:var(--teal)">strong match</div><div class="intel-title">AI Implementation Specialist · Synthesia</div><div class="intel-meta">remote · $65k · found 2h ago</div></div>
+    <div class="intel"><div class="intel-badge" style="background:var(--violet2);color:var(--violet)">good match</div><div class="intel-title">AI App Developer · Descript</div><div class="intel-meta">remote · $70k · found 3h ago</div></div>
+    <div class="intel"><div class="intel-badge" style="background:var(--violet2);color:var(--violet)">good match</div><div class="intel-title">Solutions Engineer · ElevenLabs</div><div class="intel-meta">remote · $60k · found 5h ago</div></div>
+    <div class="intel"><div class="intel-badge" style="background:var(--ember2);color:var(--ember)">stretch</div><div class="intel-title">AI Product Manager · Runway</div><div class="intel-meta">remote · $90k · found 6h ago</div></div>
+  </div>
+  <div class="sl mb16">recruiters found</div>
+  <div class="g2">
+    <div class="intel"><div class="intel-badge" style="background:var(--gold3);color:var(--gold)">recruiter</div><div class="intel-title">Sarah Chen — Head of Talent @ Hugging Face</div><div class="intel-meta">linkedin · draft ready</div></div>
+    <div class="intel"><div class="intel-badge" style="background:var(--gold3);color:var(--gold)">recruiter</div><div class="intel-title">Marcus Webb — Engineering Recruiter @ Replicate</div><div class="intel-meta">linkedin · not contacted</div></div>
+  </div>
+</div></div>
+
+<div class="pg" id="pg-playbook"><div class="pg-inner">
+  <div class="eyebrow">one-click launches</div><div class="headline">Playbook</div><div class="sub">Pre-built missions ready to launch instantly.</div>
+  <div class="g2">
+    <div class="pb"><div class="pb-ico">🎯</div><div class="pb-name">Full Job Hunt</div><div class="pb-desc">Scout searches all boards, finds recruiters, Outreach drafts messages, Coach lines up interview prep.</div><div class="pb-tags"><span class="pb-tag">scout</span><span class="pb-tag">outreach</span><span class="pb-tag">coach</span></div></div>
+    <div class="pb"><div class="pb-ico">✉️</div><div class="pb-name">Recruiter Blitz</div><div class="pb-desc">Scout finds 10 recruiters at target companies. Outreach drafts personalized messages for each.</div><div class="pb-tags"><span class="pb-tag">scout</span><span class="pb-tag">outreach</span></div></div>
+    <div class="pb"><div class="pb-ico">🎤</div><div class="pb-name">Interview Ready</div><div class="pb-desc">Coach preps you with likely questions, strong answers using your real experience.</div><div class="pb-tags"><span class="pb-tag">coach</span></div></div>
+    <div class="pb"><div class="pb-ico">⚙️</div><div class="pb-name">Code Audit</div><div class="pb-desc">Engineer reviews your current project for code smells, bugs, and architecture issues.</div><div class="pb-tags"><span class="pb-tag">engineer</span></div></div>
+    <div class="pb"><div class="pb-ico">📊</div><div class="pb-name">Weekly Debrief</div><div class="pb-desc">Coordinator summarizes everything the team found and accomplished in the past 7 days.</div><div class="pb-tags"><span class="pb-tag">coordinator</span></div></div>
+    <div class="pb"><div class="pb-ico">🏹</div><div class="pb-name">Target a Company</div><div class="pb-desc">Deep research on one company — culture, roles, hiring, who to contact, best approach.</div><div class="pb-tags"><span class="pb-tag">scout</span><span class="pb-tag">outreach</span></div></div>
+  </div>
+</div></div>
+
+<div class="pg" id="pg-teams"><div class="pg-inner">
+  <div class="eyebrow">agent organization</div><div class="headline">Teams</div><div class="sub">Your agents organized by focus area.</div>
+  <div class="team"><div class="team-hdr"><div class="team-bar" style="background:var(--sky)"></div><div><div class="team-name c-sky">Job Search</div><div class="team-desc">Finds roles, hunts recruiters, sends outreach</div></div></div><div class="team-members"><div class="tm"><div class="tm-ico">🔍</div><div><div class="tm-name">Scout</div><div class="tm-role">job board + recruiter research</div></div></div><div class="tm"><div class="tm-ico">✉️</div><div><div class="tm-name">Outreach</div><div class="tm-role">emails + DMs</div></div></div></div></div>
+  <div class="team"><div class="team-hdr"><div class="team-bar" style="background:var(--teal)"></div><div><div class="team-name c-teal">Freelance</div><div class="team-desc">Finds clients, crafts pitches, tracks contracts</div></div></div><div class="team-members"><div class="tm"><div class="tm-ico">🔍</div><div><div class="tm-name">Scout</div><div class="tm-role">client prospecting</div></div></div><div class="tm"><div class="tm-ico">✉️</div><div><div class="tm-name">Outreach</div><div class="tm-role">proposal drafting</div></div></div></div></div>
+  <div class="team"><div class="team-hdr"><div class="team-bar" style="background:var(--gold)"></div><div><div class="team-name c-gold">Katy Intel</div><div class="team-desc">Knows you deeply, preps you, targets best-fit roles</div></div></div><div class="team-members"><div class="tm"><div class="tm-ico">🎯</div><div><div class="tm-name">Coach</div><div class="tm-role">interview prep + assessment</div></div></div><div class="tm"><div class="tm-ico">⚙️</div><div><div class="tm-name">Engineer</div><div class="tm-role">code + technical help</div></div></div></div></div>
+  <div class="team"><div class="team-hdr"><div class="team-bar" style="background:var(--violet)"></div><div><div class="team-name c-violet">Command</div><div class="team-desc">Oversees everything, reports to you</div></div></div><div class="team-members"><div class="tm"><div class="tm-ico">🧠</div><div><div class="tm-name">Coordinator</div><div class="tm-role">routing + synthesis</div></div></div></div></div>
+</div></div>
+
+<div class="pg" id="pg-browser"><div class="pg-inner">
+  <div class="eyebrow">agent access</div><div class="headline">Browser</div><div class="sub">Log in once — agents use your session to browse and act.</div>
+  <div class="sl mb16">platform sessions</div>
+  <div class="sess"><div class="sess-ico">💼</div><div class="sess-info"><div class="sess-name">LinkedIn</div><div class="sess-status c-ink3" id="li-st">not connected</div></div><button class="sess-btn" id="li-btn" onclick="loginP('linkedin')">connect →</button></div>
+  <div class="sess"><div class="sess-ico">👥</div><div class="sess-info"><div class="sess-name">Facebook</div><div class="sess-status c-ink3" id="fb-st">not connected</div></div><button class="sess-btn" id="fb-btn" onclick="loginP('facebook')">connect →</button></div>
+  <div class="sl mb16" style="margin-top:24px">how it works</div>
+  <div class="card"><div style="font-size:12px;color:var(--ink2);line-height:1.8;font-weight:300">1. Click <strong style="color:var(--ink);font-weight:500">connect</strong> — a browser window opens on the G14<br>2. Log in normally with your real credentials<br>3. Session saved automatically when login completes<br>4. Agents browse as you — silently, with human-like timing<br><br><span style="color:var(--ink3)">⚠️ Sending or posting always requires your approval first</span></div></div>
+</div></div>
+
+<div class="pg" id="pg-knowledge"><div class="pg-inner">
+  <div class="eyebrow">agent bible</div><div class="headline">Knowledge</div><div class="sub">Everything your agents know about you.</div>
+  <div class="kb"><div class="kb-head">Identity</div><div class="kb-field"><div class="kb-fl">full name</div><div class="kb-fv">Kathleen Louise Casto — goes by Katy</div></div><div class="kb-field"><div class="kb-fl">location</div><div class="kb-fv">Belle / Charleston, WV · Mac M4 + Zephyrus G14</div></div><div class="kb-field"><div class="kb-fl">family</div><div class="kb-fv">Husband Joey (41) · Daughter Ariel (16)</div></div><div class="kb-field"><div class="kb-fl">background</div><div class="kb-fv">10+ years digital marketing, self-taught. AI Software Engineering at Maestro College. Vibe coder who ships real apps.</div></div></div>
+  <div class="kb"><div class="kb-head">Skills</div><div class="kb-field"><div class="kb-fl">stack</div><div><span class="kb-tag">React</span><span class="kb-tag">TypeScript</span><span class="kb-tag">JavaScript</span><span class="kb-tag">Python</span><span class="kb-tag">Supabase</span><span class="kb-tag">Claude API</span><span class="kb-tag">Gemini</span><span class="kb-tag">ElevenLabs</span><span class="kb-tag">Deepgram</span><span class="kb-tag">Runway</span><span class="kb-tag">Docker</span><span class="kb-tag">Netlify</span><span class="kb-tag">n8n</span></div></div></div>
+  <div class="kb"><div class="kb-head">Job Targets</div><div class="kb-field"><div class="kb-fl">target roles</div><div class="kb-fv">AI Application Developer · Solutions Implementation Specialist · AI Product Manager · QA / AI Evaluator</div></div><div class="kb-field"><div class="kb-fl">pay range</div><div class="kb-fv">$35/hr minimum · $50,000–$60,000/year</div></div></div>
+</div></div>
+
+<div class="pg" id="pg-logs"><div class="pg-inner">
+  <div class="eyebrow">system records</div><div class="headline">Logs</div><div class="sub">Full event history. Errors highlighted.</div>
+  <div class="card"><div id="log-list">
+    <div class="log-row"><span class="log-t">startup</span><span class="log-ok">OK</span><span class="log-msg">Agent team online. All 5 agents ready.</span></div>
+    <div class="log-row"><span class="log-t">+0:00:02</span><span class="log-info">INFO</span><span class="log-msg">Scout: beginning job search — Wellfound, Remote.co, LinkedIn</span></div>
+    <div class="log-row"><span class="log-t">+0:00:32</span><span class="log-info">INFO</span><span class="log-msg">Scout: 14 roles found matching profile and pay range</span></div>
+    <div class="log-row"><span class="log-t">+0:01:21</span><span class="log-warn">WARN</span><span class="log-msg">Outreach: 2 items pending approval — waiting on Katy</span></div>
+    <div class="log-row"><span class="log-t">+0:02:44</span><span class="log-err">ERROR</span><span class="log-msg">Scout: LinkedIn rate limit — retrying in 60s</span></div>
+    <div class="log-row"><span class="log-t">+0:03:52</span><span class="log-ok">OK</span><span class="log-msg">Scout: LinkedIn retry successful</span></div>
+  </div></div>
+</div></div>
+
+<div class="pg" id="pg-settings"><div class="pg-inner">
+  <div class="eyebrow">configuration</div><div class="headline">Settings</div><div class="sub">Control how your agent team operates.</div>
+  <div class="card mb8"><div style="font-family:'IBM Plex Mono',monospace;font-size:9px;letter-spacing:.14em;text-transform:uppercase;color:var(--ink3);margin-bottom:14px">API Keys</div>
+    <div class="srow"><div class="sinfo"><div class="slabel">Anthropic API Key</div><div class="sdesc">Powers all Claude agents</div></div><input class="sinput" type="password" value="sk-ant-api03-***"></div>
+    <div class="srow"><div class="sinfo"><div class="slabel">Telegram Bot Token</div><div class="sdesc">Mobile command interface</div></div><input class="sinput" type="password" value="8360739636:***"></div>
+  </div>
+  <div class="card mb8"><div style="font-family:'IBM Plex Mono',monospace;font-size:9px;letter-spacing:.14em;text-transform:uppercase;color:var(--ink3);margin-bottom:14px">Agent Behavior</div>
+    <div class="srow"><div class="sinfo"><div class="slabel">Require approval before sending</div><div class="sdesc">Agents ask before any email, DM, or application goes out</div></div><div class="tog on" onclick="this.classList.toggle('on')"></div></div>
+    <div class="srow"><div class="sinfo"><div class="slabel">Proactive mode</div><div class="sdesc">Agents work on their own schedule without being asked</div></div><div class="tog on" onclick="this.classList.toggle('on')"></div></div>
+    <div class="srow"><div class="sinfo"><div class="slabel">Use Ollama for routine tasks</div><div class="sdesc">Saves API costs on low-stakes operations</div></div><div class="tog" onclick="this.classList.toggle('on')"></div></div>
+    <div class="srow"><div class="sinfo"><div class="slabel">Daily briefing via Telegram</div><div class="sdesc">Coordinator sends morning summary at 7am</div></div><div class="tog on" onclick="this.classList.toggle('on')"></div></div>
+  </div>
+  <div class="card"><div style="font-family:'IBM Plex Mono',monospace;font-size:9px;letter-spacing:.14em;text-transform:uppercase;color:var(--ink3);margin-bottom:14px">Limits</div>
+    <div class="srow"><div class="sinfo"><div class="slabel">Daily API spend cap</div><div class="sdesc">Agents pause if this is hit</div></div><input class="sinput" value="$5.00"></div>
+    <div class="srow"><div class="sinfo"><div class="slabel">Max outreach per day</div><div class="sdesc">Cap on messages drafted for sending</div></div><input class="sinput" value="10"></div>
+  </div>
+</div></div>
+
+</div>
+<script>
+const API='http://localhost:8000';
+let lastId=0,allEvents=[],connected=false;
+const h=new Date().getHours();
+document.getElementById('greet').textContent=(h<12?'good morning':h<17?'good afternoon':'good evening')+', katy';
+function nav(p,el){document.querySelectorAll('.pg').forEach(x=>x.classList.remove('on'));document.querySelectorAll('.ri').forEach(x=>x.classList.remove('on'));document.getElementById('pg-'+p).classList.add('on');if(el)el.classList.add('on');}
+const aC={coordinator:'var(--violet)',scout:'var(--sky)',outreach:'var(--teal)',engineer:'var(--ember)',coach:'var(--green)',katy:'var(--gold)',system:'var(--ink4)'};
+const tS={thought:{bg:'var(--g3)',c:'var(--ink4)'},action:{bg:'var(--sky2)',c:'var(--sky)'},message:{bg:'var(--violet2)',c:'var(--violet)'},approval_needed:{bg:'var(--gold3)',c:'var(--gold)'},result:{bg:'var(--green2)',c:'var(--green)'}};
+function addRow(ev){
+  const feed=document.getElementById('feed');
+  const t=new Date(ev.timestamp).toLocaleTimeString([],{hour:'2-digit',minute:'2-digit',second:'2-digit'});
+  const ts=tS[ev.type]||tS.thought;const bar=aC[ev.agent]||'var(--rim2)';
+  const r=document.createElement('div');r.className='fr';
+  r.innerHTML=`<span class="fr-t">${t}</span><span class="fr-who" style="color:${bar}">${ev.agent}</span><div class="fr-bar" style="background:${bar}"></div><span class="fr-tag" style="background:${ts.bg};color:${ts.c}">${ev.type}</span><span class="fr-msg">${ev.content}</span>`;
+  feed.appendChild(r);while(feed.children.length>100)feed.removeChild(feed.firstChild);feed.scrollTop=feed.scrollHeight;
+  const st=document.getElementById('st-'+ev.agent);if(st){st.textContent=ev.type==='thought'?'thinking...':ev.type==='result'?'done':ev.type;setTimeout(()=>{if(st)st.textContent='idle'},4000);}
+}
+async function poll(){try{const r=await fetch(`${API}/events?since_id=${lastId}`);const evs=await r.json();if(evs.length){evs.forEach(e=>{allEvents.push(e);addRow(e)});lastId=evs[evs.length-1].id;}connected=true;document.getElementById('s-events').textContent=allEvents.length;}catch(e){connected=false;}}
+async function pollSt(){try{const r=await fetch(`${API}/status`);const d=await r.json();document.getElementById('s-appr').textContent=d.pending_approvals??'—';if(d.memory){document.getElementById('s-jobs').textContent=d.memory.jobs_total??'—';document.getElementById('s-contacts').textContent=d.memory.contacts_total??'—';}}catch(e){}}
+async function pollAppr(){try{const r=await fetch(`${API}/approvals`);const items=await r.json();const list=document.getElementById('outbox-list');if(!items.length){list.innerHTML='<div class="empty">✓ nothing pending<br>agents will ask before acting</div>';return;}list.innerHTML='';items.forEach(item=>{const c=document.createElement('div');c.className='appr';c.innerHTML=`<div class="appr-who">${item.agent} wants to:</div><div class="appr-action">${item.action}</div><div class="appr-detail">${JSON.stringify(item.details).slice(0,200)}</div><div class="appr-btns"><button class="btn-y" onclick="doAppr(${item.id},this)">✓ approve</button><button class="btn-n" onclick="doRej(${item.id},this)">✗ reject</button></div>`;list.appendChild(c);});}catch(e){}}
+async function doAppr(id,btn){btn.disabled=true;await fetch(`${API}/approvals/${id}/approve`,{method:'POST'});btn.closest('.appr').style.opacity='.4';setTimeout(()=>pollAppr(),600);}
+async function doRej(id,btn){btn.disabled=true;await fetch(`${API}/approvals/${id}/reject`,{method:'POST'});btn.closest('.appr').style.opacity='.4';setTimeout(()=>pollAppr(),600);}
+async function sendMsg(){const inp=document.getElementById('chat-in');const who=document.getElementById('chat-who').value;const msg=inp.value.trim();if(!msg)return;const btn=document.getElementById('send-b');btn.disabled=true;btn.textContent='...';inp.value='';addRow({id:Date.now(),timestamp:new Date().toISOString(),agent:'katy',type:'message',content:`→ ${who}: ${msg}`});try{await fetch(`${API}/chat`,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({message:msg,agent:who})});}catch(e){addRow({id:Date.now(),timestamp:new Date().toISOString(),agent:'system',type:'result',content:'⚠️ Cannot reach orchestrator'});}btn.disabled=false;btn.textContent='Send →';}
+function quick(w,m){document.getElementById('chat-who').value=w;document.getElementById('chat-in').value=m;sendMsg();}
+async function checkSess(){try{const r=await fetch(`${API}/browser/sessions`);const d=await r.json();if(d.linkedin){document.getElementById('li-st').textContent='connected — agents can browse LinkedIn';document.getElementById('li-st').className='sess-status c-teal';document.getElementById('li-btn').className='sess-btn ok';document.getElementById('li-btn').textContent='connected ✓';}if(d.facebook){document.getElementById('fb-st').textContent='connected — agents can browse Facebook';document.getElementById('fb-st').className='sess-status c-teal';document.getElementById('fb-btn').className='sess-btn ok';document.getElementById('fb-btn').textContent='connected ✓';}}catch(e){}}
+async function loginP(p){const btn=document.getElementById(p==='linkedin'?'li-btn':'fb-btn');btn.textContent='opening browser...';btn.disabled=true;try{const r=await fetch(`${API}/browser/login/${p}`,{method:'POST'});const d=await r.json();alert(d.result);checkSess();}catch(e){alert('Cannot reach orchestrator');}btn.disabled=false;}
+const demo=[{id:1,timestamp:new Date().toISOString(),agent:'system',type:'result',content:'Agent team online — 5 agents ready'},{id:2,timestamp:new Date().toISOString(),agent:'coordinator',type:'thought',content:"Initializing. Loading Katy's brief (4,821 chars)."},{id:3,timestamp:new Date().toISOString(),agent:'scout',type:'action',content:'Starting job search: AI developer roles, remote, $50k+'},{id:4,timestamp:new Date().toISOString(),agent:'scout',type:'result',content:'14 roles found — top: AI Implementation Specialist @ Synthesia ($65k)'},{id:5,timestamp:new Date().toISOString(),agent:'outreach',type:'thought',content:'Drafting cold email to recruiter at Hugging Face...'},{id:6,timestamp:new Date().toISOString(),agent:'outreach',type:'approval_needed',content:'Draft ready — waiting for Katy approval'},{id:7,timestamp:new Date().toISOString(),agent:'coordinator',type:'message',content:'Scout found 14 roles. Outreach has 2 drafts in your Outbox.'},];
+let di=0;function runDemo(){if(di<demo.length){addRow(demo[di++]);setTimeout(runDemo,650+Math.random()*750);}}
+setTimeout(runDemo,300);checkSess();setInterval(poll,2500);setInterval(pollSt,8000);setInterval(pollAppr,6000);
+</script>
+</body>
+</html>

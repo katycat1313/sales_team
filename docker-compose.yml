@@ -1,0 +1,27 @@
+version: '3.8'
+
+services:
+  orchestrator:
+    build: ./orchestrator
+    container_name: agent_orchestrator
+    ports:
+      - "8000:8000"
+    volumes:
+      - ./orchestrator:/app
+      - ./orchestrator/logs:/app/logs
+      - ./orchestrator/memory:/app/memory
+      - ./orchestrator/sessions:/app/sessions
+    env_file:
+      - .env
+    restart: unless-stopped
+
+  telegram_bot:
+    build: ./telegram_bot
+    container_name: agent_telegram
+    volumes:
+      - ./telegram_bot:/app
+    env_file:
+      - .env
+    depends_on:
+      - orchestrator
+    restart: unless-stopped
