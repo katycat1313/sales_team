@@ -52,9 +52,10 @@ from task_handler import TaskHandler
 from playbooks import PlaybookRunner
 from constants import ALLOWED_TARGET_NICHES, DEFAULT_TARGET_NICHE, MAX_PROSPECT_SCORE
 
-MEMORY_PATH = Path("/Users/katycat/Downloads/agent_team/orchestrator/memory/katy_brief.md")
+_BASE = Path(os.getenv("APP_BASE", Path(__file__).parent))
+MEMORY_PATH = Path(os.getenv("MEMORY_DB_PATH", _BASE / "memory" / "katy_brief.md")).parent / "katy_brief.md"
 KATY_BRIEF = MEMORY_PATH.read_text() if MEMORY_PATH.exists() else ""
-LOG_DIR = Path("/Users/katycat/Downloads/agent_team/orchestrator/logs")
+LOG_DIR = Path(os.getenv("LOG_DIR", _BASE / "logs"))
 LOG_DIR.mkdir(exist_ok=True)
 COMPLIANCE_LOG_DIR = LOG_DIR / "compliance"
 COMPLIANCE_LOG_DIR.mkdir(exist_ok=True)
@@ -1186,7 +1187,7 @@ async def browser_login(platform: str):
 @app.get("/browser/sessions")
 def browser_sessions():
     from pathlib import Path
-    session_dir = Path("/Users/katycat/Downloads/agent_team/orchestrator/sessions")
+    session_dir = Path(os.getenv("SESSION_DIR", Path(__file__).parent / "sessions"))
     return {"linkedin": (session_dir/"linkedin_session.json").exists(),
             "facebook": (session_dir/"facebook_session.json").exists()}
 
