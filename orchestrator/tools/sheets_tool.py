@@ -21,10 +21,7 @@ import urllib.error
 
 # ── Config ────────────────────────────────────────────────────────────────────
 
-SHEET_ID = os.getenv(
-    "GOOGLE_SHEET_ID",
-    "12PoYqddT3FzQAlvL871cR4kUfk3X37M_qO10oT2V65c",
-)
+SHEET_ID = os.getenv("GOOGLE_SHEET_ID", "")
 
 _webapp_url_primary = os.getenv("GOOGLE_SHEETS_WEBAPP_URL", "").strip()
 _webapp_url_legacy = os.getenv("GOOGLE_SHEETS_WEBHOOK_URL", "").strip()
@@ -33,12 +30,7 @@ _deployment_id = os.getenv("GOOGLE_SHEETS_DEPLOYMENT_ID", "").strip()
 if not _webapp_url_primary and _deployment_id:
     _webapp_url_primary = f"https://script.google.com/macros/s/{_deployment_id}/exec"
 
-# Final fallback uses the deployment URL provided during setup for this workspace.
-SHEETS_WEBAPP_URL = (
-    _webapp_url_primary
-    or _webapp_url_legacy
-    or "https://script.google.com/macros/s/AKfycbzmlPEdcndwHPxMjCyamglrebBe3syEGorWj4BHMRfgegyighjOwINKhGKe7R1d4LqT/exec"
-)
+SHEETS_WEBAPP_URL = _webapp_url_primary or _webapp_url_legacy
 SHEETS_WEBAPP_TOKEN = os.getenv("GOOGLE_SHEETS_WEBAPP_TOKEN", "").strip()
 
 # Path to the service account credentials JSON file.

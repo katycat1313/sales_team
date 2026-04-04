@@ -2850,10 +2850,10 @@ async def vapi_webhook(body: dict):
 async def vapi_setup(body: dict):
     """
     One-time setup — creates the VAPI assistant and saves the ID to .env
-    Body: { "katy_phone": "3043989553", "webhook_url": "https://your-ngrok-url.ngrok.io" }
+    Body: { "katy_phone": "<phone_number>", "webhook_url": "https://your-ngrok-url.ngrok.io" }
     """
     from tools.vapi_tool import create_assistant, list_phone_numbers
-    katy_phone = body.get("katy_phone", "3043989553")
+    katy_phone = body.get("katy_phone", "")
     webhook_url = body.get("webhook_url", "http://localhost:8000")
 
     # Update webhook URL in tool
