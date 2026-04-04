@@ -34,17 +34,12 @@ from agents.sales import SalesAgent, SalesOpsAgent
 from agents.outreach import OutreachAgent
 from agents.engineer import EngineerAgent
 from agents.team_leader import TeamLeaderAgent
-from agents.job_seeker import JobSeekerAgent
-from agents.scout import ScoutAgent
 from agents.networking import NetworkingAgent
-from agents.coach import CoachAgent
-from agents.interview_coach import InterviewCoachAgent
 from agents.lead_gen import LeadGenAgent
 from agents.marketing import MarketingAgent
 from agents.biz_dev import BizDevAgent
 from agents.automations import AutomationsAgent
 from agents.solutions_architect import SolutionsArchitectAgent
-from agents.resume_builder import ResumeBuilderAgent
 from agents.research_assistant import ResearchAssistantAgent
 from scheduler import scheduler
 from memory.memory import init_db, get_memory_summary
@@ -78,17 +73,12 @@ AGENT_MAP = {
     "research_assistant":   lambda b,l,a: ResearchAssistantAgent(b,l,a),
     "engineer":             lambda b,l,a: EngineerAgent(b,l,a),
     "team_leader":          lambda b,l,a: TeamLeaderAgent(b,l,a),
-    "job_seeker":           lambda b,l,a: JobSeekerAgent(b,l,a),
-    "scout":                lambda b,l,a: ScoutAgent(b,l,a),
     "networking":           lambda b,l,a: NetworkingAgent(b,l,a),
-    "coach":                lambda b,l,a: CoachAgent(b,l,a),
-    "interview_coach":      lambda b,l,a: InterviewCoachAgent(b,l,a),
     "lead_gen":             lambda b,l,a: LeadGenAgent(b,l,a),
     "marketing":            lambda b,l,a: MarketingAgent(b,l,a),
     "biz_dev":              lambda b,l,a: BizDevAgent(b,l,a),
     "automations":          lambda b,l,a: AutomationsAgent(b,l,a),
     "solutions_architect":  lambda b,l,a: SolutionsArchitectAgent(b,l,a),
-    "resume_builder":       lambda b,l,a: ResumeBuilderAgent(b,l,a),
 }
 
 def log_event(agent: str, event_type: str, content: str):
