@@ -82,6 +82,34 @@ If no niche given, pick plumbers — highest GBP conversion rate.
             self.think(f"Browser scan failed: {e} — generating research-based prospects instead")
             prospects = []
 
+        # Supplement: mine reviews for call complaints and elevate priority
+        try:
+            from tools.review_miner import scan_for_call_complaints
+            complaint_prospects = await scan_for_call_complaints(niche, location, limit=8)
+            # Merge complaint data into existing prospects or add new ones
+            existing_names = {p.get("name", "").lower() for p in prospects}
+            for cp in complaint_prospects:
+                cp_name = cp.get("name", "").lower()
+                if cp_name in existing_names:
+                    # Elevate existing prospect priority if they have complaint signals
+                    for p in prospects:
+                        if p.get("name", "").lower() == cp_name:
+                            p["priority"] = "HOT"
+                            p["complaint_score"] = cp.get("complaint_score", 0)
+                            p["complaint_keywords"] = cp.get("complaint_keywords", [])
+                            p["complaint_reviews"] = cp.get("complaint_reviews", [])
+                            if cp.get("complaint_reviews"):
+                                p.setdefault("issues", []).insert(
+                                    0, f"Review complaint: \"{cp['complaint_reviews'][0][:120]}\""
+                                )
+                            break
+                elif cp.get("complaint_score", 0) > 0:
+                    # Add as new prospect with complaint data
+                    cp["source"] = "review_miner"
+                    prospects.append(cp)
+        except Exception as e:
+            self.think(f"Review mining supplemental scan failed (non-blocking): {e}")
+
         if not prospects or (len(prospects) == 1 and "error" in prospects[0]):
             error_msg = prospects[0].get("error", "scan failed") if prospects else "no results"
             self.think(f"Browser scan unavailable: {error_msg}")

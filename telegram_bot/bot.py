@@ -23,6 +23,7 @@ async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
     await update.message.reply_text(
         "🤖 <b>Missed-Call-Revenue Agent Team</b>\n\n"
         "<b>Find Clients</b>\n"
+        "/complaints — find businesses where customers complain about missed calls 🔥\n"
         "/pipeline — scan Google Maps, research, build outreach\n"
         "/linkedin — find + DM service business owners on LinkedIn\n"
         "/leadgen — find and qualify prospects\n"
@@ -180,11 +181,12 @@ def main():
     app.add_handler(CommandHandler("no",        no_cmd))   # shorter, easier to type
 
     # Playbook shortcuts
-    app.add_handler(CommandHandler("pipeline", make_playbook_cmd("client-pipeline",   "🔍")))
-    app.add_handler(CommandHandler("linkedin", make_playbook_cmd("linkedin-outreach", "💼")))
-    app.add_handler(CommandHandler("debrief",  make_playbook_cmd("weekly-debrief",    "📊")))
-    app.add_handler(CommandHandler("funnel",   make_playbook_cmd("prospect-funnel",   "🔄")))
-    app.add_handler(CommandHandler("target",   make_playbook_cmd("target-company",    "🎯")))
+    app.add_handler(CommandHandler("pipeline",    make_playbook_cmd("client-pipeline",   "🔍")))
+    app.add_handler(CommandHandler("complaints",  make_playbook_cmd("complaints-scan",   "🔥")))
+    app.add_handler(CommandHandler("linkedin",    make_playbook_cmd("linkedin-outreach", "💼")))
+    app.add_handler(CommandHandler("debrief",     make_playbook_cmd("weekly-debrief",    "📊")))
+    app.add_handler(CommandHandler("funnel",      make_playbook_cmd("prospect-funnel",   "🔄")))
+    app.add_handler(CommandHandler("target",      make_playbook_cmd("target-company",    "🎯")))
 
     # Agent commands
     commands = [

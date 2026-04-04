@@ -10,6 +10,7 @@ from memory.memory import (
 
 PLAYBOOKS = {
     "client-pipeline":   {"title": "Client Pipeline — Find & Pitch"},
+    "complaints-scan":   {"title": "Complaints Scan — Find Businesses Losing Calls"},
     "linkedin-outreach": {"title": "LinkedIn Outreach — Find & DM"},
     "prospect-funnel":   {"title": "Prospect Funnel — Nurture to Demo"},
     "target-company":    {"title": "Target a Specific Company"},
@@ -35,6 +36,7 @@ class PlaybookRunner:
         payload = body or {}
         runners = {
             "client-pipeline":  self._run_client_pipeline,
+            "complaints-scan":  self._run_complaints_scan,
             "linkedin-outreach": self._run_linkedin_outreach,
             "prospect-funnel":  self._run_prospect_funnel,
             "target-company":   self._run_target_company,
@@ -110,6 +112,61 @@ class PlaybookRunner:
         return f"{title} completed via {', '.join(item['agent'] for item in outputs)}. {last[:320]}"
 
     # ── Playbooks ─────────────────────────────────────────────────────────────
+
+    async def _run_complaints_scan(self, payload: dict[str, Any]) -> dict[str, Any]:
+        """
+        Mine Yelp and Google reviews to find businesses where customers already
+        complain about unanswered calls, voicemail, and slow response.
+        These are the hottest possible prospects — the problem is already documented publicly.
+        """
+        niche    = str(payload.get("niche", "plumbers")).strip()
+        location = str(payload.get("location", "Charleston WV")).strip()
+
+        steps = [
+            {
+                "agent": "gbp_scout",
+                "task": (
+                    f"Use the review_miner tool to scan Yelp and Google reviews for {niche} businesses "
+                    f"in {location} where customers complain about unanswered calls, voicemail, long wait times, "
+                    f"or slow response. Call scan_for_call_complaints('{niche}', '{location}'). "
+                    f"Return every business found with their complaint score, the actual complaint quotes from "
+                    f"reviews, phone number, and why they are a perfect fit for Missed-Call-Revenue. "
+                    f"Real data only — no invented businesses."
+                ),
+            },
+            {
+                "agent": "small_biz_expert",
+                "task": lambda outputs: (
+                    "Using the complaint scan results below, calculate the real revenue each business is "
+                    "losing due to missed calls. Use their niche to estimate average job value and the "
+                    "number of calls they're likely missing per week. Quote the specific complaints from "
+                    "their reviews — that language is our pitch hook. Rank them by urgency.\n\n"
+                    f"{self._results_context(outputs)}"
+                ),
+            },
+            {
+                "agent": "sales",
+                "task": lambda outputs: (
+                    "Write a cold pitch for each business below. "
+                    "LEAD WITH THEIR OWN REVIEW LANGUAGE — quote what their customer said, then show how "
+                    "Eric solves exactly that. These businesses have public proof of the problem. "
+                    "Make every pitch feel like you read their reviews because you did.\n\n"
+                    f"{self._results_context(outputs)}"
+                ),
+            },
+            {
+                "agent": "outreach",
+                "task": lambda outputs: (
+                    "Turn the pitches below into ready-to-send outreach drafts. "
+                    "These prospects were found via review complaints — the opening line should reference "
+                    "something a real customer said about them. "
+                    "For each business produce: (1) EMAIL subject + body, (2) SMS if phone available. "
+                    "Queue all for Katy's approval. No placeholders.\n\n"
+                    f"{self._results_context(outputs)}"
+                ),
+            },
+        ]
+        return await self._run_steps("complaints-scan", steps)
 
     async def _run_linkedin_outreach(self, payload: dict[str, Any]) -> dict[str, Any]:
         """
