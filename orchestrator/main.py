@@ -1290,6 +1290,66 @@ def set_availability(body: dict):
 def list_agents():
     return {"agents": list(AGENT_MAP.keys()), "total": len(AGENT_MAP)}
 
+@app.get("/coldcall-list")
+def coldcall_list(priority: str = None, limit: int = 50):
+    """
+    Returns a ready-to-dial list of prospects with phone numbers.
+    Sorted HOT first, then WARM. Includes the complaint signal if available
+    so Katy knows exactly what to say when she calls.
+    """
+    from memory.memory import get_prospects
+    import json
+
+    all_prospects = get_prospects(limit=200)
+
+    # Filter to those with a phone number
+    with_phone = [p for p in all_prospects if p.get("phone", "").strip()]
+
+    # Apply priority filter
+    if priority:
+        with_phone = [p for p in with_phone if p.get("priority", "").upper() == priority.upper()]
+
+    # Sort: HOT first, then WARM, then COLD
+    priority_order = {"HOT": 0, "WARM": 1, "COLD": 2}
+    with_phone.sort(key=lambda p: priority_order.get(p.get("priority", "COLD"), 2))
+
+    call_list = []
+    for p in with_phone[:limit]:
+        # Parse complaint keywords if stored
+        gbp_issues = p.get("gbp_issues", "[]")
+        try:
+            issues = json.loads(gbp_issues) if isinstance(gbp_issues, str) else (gbp_issues or [])
+        except Exception:
+            issues = []
+
+        complaint_signal = ""
+        if p.get("complaint_keywords"):
+            try:
+                kw = json.loads(p["complaint_keywords"]) if isinstance(p["complaint_keywords"], str) else p["complaint_keywords"]
+                complaint_signal = f"Review complaint: {', '.join(kw[:3])}" if kw else ""
+            except Exception:
+                pass
+        if not complaint_signal and issues:
+            complaint_signal = issues[0] if isinstance(issues[0], str) else ""
+
+        call_list.append({
+            "priority":         p.get("priority", "WARM"),
+            "business_name":    p.get("business_name", ""),
+            "phone":            p.get("phone", ""),
+            "niche":            p.get("niche", ""),
+            "location":         p.get("location", ""),
+            "complaint_signal": complaint_signal,
+            "pipeline_stage":   p.get("pipeline_stage", ""),
+            "notes":            (p.get("research_notes") or "")[:200],
+        })
+
+    return {
+        "total": len(call_list),
+        "hot":   sum(1 for c in call_list if c["priority"] == "HOT"),
+        "warm":  sum(1 for c in call_list if c["priority"] == "WARM"),
+        "call_list": call_list,
+    }
+
 @app.get("/memory/summary")
 def memory_summary():
     return get_memory_summary()

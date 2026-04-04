@@ -400,8 +400,19 @@ def _assistant_payload(phone_number_id: str, katy_phone: str, webhook_url: str =
             ]),
             "temperature": 0.7,
         },
-        "voice": {"provider": "11labs", "voiceId": "rachel"},
-        "firstMessage": "Hi, this is Eric, an AI sales agent for Katy. Press 9 now to opt out, or say stop at any time to opt out of future calls. Is now a bad time for a quick reason I called?",
+        "voice": {
+            "provider": "11labs",
+            "voiceId": "rachel",
+            "stability": 0.65,        # Keeps pace consistent — prevents slow-start / speed-up drift
+            "similarityBoost": 0.80,  # Stays true to the voice character
+            "style": 0.15,            # Light expressiveness without over-acting
+            "useSpeakerBoost": True,  # Cleaner audio, more present sound
+            "speed": 0.97,            # Very slightly under 1.0 — natural pace, never rushed
+        },
+        "backgroundSound": "off",
+        "backgroundDenoisingEnabled": True,
+        "modelOutputInRealTimeEnabled": True,
+        "firstMessage": "Hey, this is Eric. Did I catch you at an okay time?",
         "tools": _assistant_tools(webhook_base_url, katy_phone, enable_transfer),
         "endCallMessage": "Thanks for your time. Have a great day.",
         "endCallPhrases": ["goodbye", "bye", "not interested", "remove me", "stop", "opt out", "do not call"],

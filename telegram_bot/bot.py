@@ -36,7 +36,9 @@ async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
         "<b>Outreach & Replies</b>\n"
         "/outreach — draft personalized messages\n"
         "/networking — warm up prospects before pitch\n"
-        "/marketing — platform-specific messaging + content\n\n"
+        "/marketing — platform-specific messaging + content\n"
+        "/calllist — your cold call list with numbers + what to say\n"
+        "/calllist HOT — HOT prospects only\n\n"
         "<b>Approvals</b>\n"
         "/approvals — see what's waiting\n"
         "/approve [id] — send it now\n"
@@ -162,6 +164,42 @@ async def no_cmd(update: Update, context: ContextTypes.DEFAULT_TYPE):
         await client.post(f"{ORCHESTRATOR_URL}/approvals/{context.args[0]}/reject")
     await update.message.reply_text(f"🚫 Cancelled #{context.args[0]}")
 
+async def calllist_cmd(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    """Send Katy her cold call list — HOT prospects with phone numbers and what to say."""
+    if not is_katy(update): return
+    priority = context.args[0].upper() if context.args else None
+    async with httpx.AsyncClient(timeout=20) as client:
+        params = {"limit": 30}
+        if priority:
+            params["priority"] = priority
+        r = await client.get(f"{ORCHESTRATOR_URL}/coldcall-list", params=params)
+        data = r.json()
+
+    items = data.get("call_list", [])
+    if not items:
+        await update.message.reply_text("No prospects with phone numbers yet. Run /pipeline or /complaints first.")
+        return
+
+    msg = (
+        f"📞 <b>Cold Call List</b> — {data['total']} numbers\n"
+        f"🔥 HOT: {data['hot']}  |  🟡 WARM: {data['warm']}\n\n"
+    )
+    for p in items[:20]:
+        icon = "🔥" if p["priority"] == "HOT" else "🟡"
+        msg += f"{icon} <b>{p['business_name']}</b>\n"
+        msg += f"📞 {p['phone']}"
+        if p.get("niche"):
+            msg += f"  ({p['niche']})"
+        msg += "\n"
+        if p.get("complaint_signal"):
+            msg += f"<i>↳ {p['complaint_signal'][:100]}</i>\n"
+        msg += "\n"
+
+    if data["total"] > 20:
+        msg += f"<i>...and {data['total'] - 20} more. Check /coldcall-list for full list.</i>"
+
+    await update.message.reply_text(msg, parse_mode="HTML")
+
 async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
     if not is_katy(update): return
     await update.message.reply_text("🧠 Thinking...")
@@ -184,6 +222,7 @@ def main():
     app.add_handler(CommandHandler("approve",   approve_cmd))
     app.add_handler(CommandHandler("reject",    no_cmd))   # alias
     app.add_handler(CommandHandler("no",        no_cmd))   # shorter, easier to type
+    app.add_handler(CommandHandler("calllist",  calllist_cmd))
 
     # Playbook shortcuts
     app.add_handler(CommandHandler("pipeline",    make_playbook_cmd("client-pipeline",   "🔍")))
