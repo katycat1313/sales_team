@@ -10,6 +10,7 @@ from memory.memory import (
 
 PLAYBOOKS = {
     "client-pipeline":   {"title": "Client Pipeline — Find & Pitch"},
+    "linkedin-outreach": {"title": "LinkedIn Outreach — Find & DM"},
     "prospect-funnel":   {"title": "Prospect Funnel — Nurture to Demo"},
     "target-company":    {"title": "Target a Specific Company"},
     "automation-audit":  {"title": "Automation Audit"},
@@ -34,6 +35,7 @@ class PlaybookRunner:
         payload = body or {}
         runners = {
             "client-pipeline":  self._run_client_pipeline,
+            "linkedin-outreach": self._run_linkedin_outreach,
             "prospect-funnel":  self._run_prospect_funnel,
             "target-company":   self._run_target_company,
             "automation-audit": self._run_automation_audit,
@@ -109,6 +111,58 @@ class PlaybookRunner:
 
     # ── Playbooks ─────────────────────────────────────────────────────────────
 
+    async def _run_linkedin_outreach(self, payload: dict[str, Any]) -> dict[str, Any]:
+        """
+        Find service business owners on LinkedIn → research them → DM them as Katy.
+        Requires LinkedIn session saved via /browser/login/linkedin.
+        """
+        niche    = str(payload.get("niche", "plumbing OR HVAC OR electrician")).strip()
+        location = str(payload.get("location", "")).strip()
+
+        steps = [
+            {
+                "agent": "gbp_researcher",
+                "task": (
+                    f"Search LinkedIn for service business owners or operators in the {niche} niche"
+                    + (f" near {location}" if location else "")
+                    + ". Use the linkedin_search_businesses tool. "
+                    "For each result, find their business name, their role, and any public signals "
+                    "that suggest they handle a lot of calls — phone service, contracting, home services, etc. "
+                    "Return profile URLs, names, business names, and a brief note on why they're a good fit. "
+                    "Real profiles only."
+                ),
+            },
+            {
+                "agent": "small_biz_expert",
+                "task": lambda outputs: (
+                    "Using the LinkedIn profiles found below, identify the top 5 best prospects for "
+                    "Katy's AI answering service. For each one, write one specific hook — what pain point "
+                    "do they have that the service solves? Reference what you can see from their profile.\n\n"
+                    f"{self._results_context(outputs)}"
+                ),
+            },
+            {
+                "agent": "sales",
+                "task": lambda outputs: (
+                    "Write a short LinkedIn DM pitch for each of the top prospects below. "
+                    "Under 300 characters. Lead with something specific you noticed about their business. "
+                    "One clear ask at the end. No fluff, no templates. Sound like Katy wrote it personally.\n\n"
+                    f"{self._results_context(outputs)}"
+                ),
+            },
+            {
+                "agent": "outreach",
+                "task": lambda outputs: (
+                    "Format the LinkedIn DMs below into final outreach drafts. "
+                    "Platform: linkedin. These will be sent from Katy's LinkedIn profile. "
+                    "Also write an email version for each prospect if an email can be inferred. "
+                    "Queue all for Katy's approval before sending.\n\n"
+                    f"{self._results_context(outputs)}"
+                ),
+            },
+        ]
+        return await self._run_steps("linkedin-outreach", steps)
+
     async def _run_client_pipeline(self, payload: dict[str, Any]) -> dict[str, Any]:
         """
         Full top-of-funnel: scan Google Maps for real service businesses →
@@ -156,8 +210,11 @@ class PlaybookRunner:
             {
                 "agent": "outreach",
                 "task": lambda outputs: (
-                    "Turn the pitches below into ready-to-send outreach drafts. For each business produce: "
-                    "(1) a cold email subject + body, (2) an SMS opener if phone available. "
+                    "Turn the pitches below into ready-to-send outreach drafts. "
+                    "These prospects were found via Google Maps. For each business produce: "
+                    "(1) an EMAIL — subject + body, "
+                    "(2) an SMS opener (under 160 chars) if a phone number is available, "
+                    "(3) note the platform as 'google_maps' so the right channel is used. "
                     "Queue all drafts for Katy's approval before sending. No placeholders.\n\n"
                     f"{self._results_context(outputs)}"
                 ),

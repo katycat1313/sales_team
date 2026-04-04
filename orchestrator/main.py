@@ -2742,7 +2742,52 @@ async def sms_inbound(request: Request):
             pipeline_stage="replied_sms",
         )
 
-    # Return empty TwiML — no auto-reply (Katy handles replies manually or via Telegram)
+    # ── Auto-draft a reply via sales agent (background, non-blocking) ─────────
+    async def _draft_sms_reply():
+        try:
+            context_summary = (
+                f"Prospect: {biz_name}" + (f" in {biz_city}" if biz_city else "") +
+                (f" | Temperature: {temperature}" if temperature else "") +
+                f"\nTheir SMS: {message_body}"
+            )
+            if match:
+                notes = match.get("call_result_summary", "") or ""
+                if notes:
+                    context_summary += f"\nConversation history: {notes[:400]}"
+
+            draft = await task_handler.run_agent(
+                "sales",
+                f"A prospect just replied to our SMS outreach. Draft a natural, concise reply "
+                f"(max 160 chars for SMS, or a short paragraph for follow-up). "
+                f"Move them forward — toward a call, demo, or close. "
+                f"Sound like a real human, not a script.\n\n{context_summary}"
+            )
+            request_approval(
+                agent="sales",
+                action="send_sms_reply",
+                details={
+                    "to": from_number,
+                    "business": biz_name,
+                    "their_message": message_body,
+                    "draft_reply": draft,
+                }
+            )
+            try:
+                from scheduler import send_telegram
+                tg = (
+                    f"✏️ <b>SMS Draft Ready</b> — {biz_name}\n"
+                    f"Their message: <i>{message_body[:120]}</i>\n\n"
+                    f"<b>Suggested reply:</b>\n{draft[:300]}\n\n"
+                    f"Reply YES in /approvals to send."
+                )
+                await send_telegram(tg)
+            except Exception:
+                pass
+        except Exception as e:
+            log_event("sms", "warn", f"Auto-draft failed: {e}")
+
+    asyncio.create_task(_draft_sms_reply())
+
     return Response(
         content='<?xml version="1.0" encoding="UTF-8"?><Response></Response>',
         media_type="application/xml",
@@ -2837,6 +2882,161 @@ async def stripe_webhook(request: Request):
     except Exception as e:
         log_event("stripe", "warn", f"Webhook error: {e}")
         return {"received": False, "error": str(e)}
+
+
+@app.post("/gmail/poll-replies")
+async def gmail_poll_replies(since_hours: int = 48):
+    """
+    Check Gmail inbox for unread replies from prospects.
+    For each reply, drafts a response via the sales agent and queues for Katy's approval.
+    Trigger manually or via a cron.
+    """
+    from tools.gmail_tool import check_replies
+    from memory.memory import get_prospects
+
+    replies = check_replies(since_hours=since_hours)
+    errors  = [r for r in replies if "error" in r]
+    if errors:
+        return {"checked": False, "error": errors[0]["error"]}
+
+    real_replies = [r for r in replies if "error" not in r]
+    if not real_replies:
+        return {"checked": True, "new_replies": 0}
+
+    prospects = get_prospects()
+    processed = []
+
+    for reply in real_replies:
+        from_email = reply.get("from_email", "")
+        from_name  = reply.get("from_name", "")
+        body       = reply.get("body", "")
+        subject    = reply.get("subject", "")
+
+        # Try to match to a known prospect by email
+        match = next(
+            (p for p in prospects if from_email.lower() in (p.get("email", "") or "").lower()),
+            None
+        )
+        biz_name = match["business_name"] if match else (from_name or from_email)
+
+        log_event("gmail", "action", f"Reply from {from_email} ({biz_name}): {body[:80]}")
+
+        # Draft reply via sales agent
+        context = (
+            f"Prospect: {biz_name}\n"
+            f"Their email subject: {subject}\n"
+            f"Their message:\n{body[:1000]}"
+        )
+        if match:
+            notes = match.get("call_result_summary", "") or ""
+            if notes:
+                context += f"\n\nConversation history: {notes[:300]}"
+
+        try:
+            draft = await task_handler.run_agent(
+                "sales",
+                f"A prospect just replied to our email outreach. Write a concise, human reply "
+                f"that moves them forward — toward a call, demo, or close. "
+                f"Match their tone. No fluff.\n\n{context}"
+            )
+
+            request_approval(
+                agent="sales",
+                action="send_email_reply",
+                details={
+                    "to": from_email,
+                    "business": biz_name,
+                    "their_subject": subject,
+                    "their_message": body[:400],
+                    "draft_reply": draft,
+                }
+            )
+
+            # Notify Katy via Telegram
+            try:
+                from scheduler import send_telegram
+                tg = (
+                    f"📧 <b>Email Reply — {biz_name}</b>\n"
+                    f"From: {from_email}\n"
+                    f"Subject: {subject}\n"
+                    f"<i>{body[:150]}</i>\n\n"
+                    f"<b>Draft reply:</b>\n{draft[:300]}\n\n"
+                    f"Approve in /approvals to send."
+                )
+                await send_telegram(tg)
+            except Exception:
+                pass
+
+            processed.append({"from": from_email, "business": biz_name, "drafted": True})
+
+            # Save reply to prospect record
+            if match:
+                from memory.memory import update_prospect
+                existing = match.get("call_result_summary", "") or ""
+                updated  = f"{existing}\n[Email reply] {body[:300]}".strip()
+                update_prospect(
+                    business_name=match["business_name"],
+                    location=match.get("location", ""),
+                    call_result_summary=updated[:1000],
+                    pipeline_stage="replied_email",
+                )
+
+        except Exception as e:
+            processed.append({"from": from_email, "business": biz_name, "drafted": False, "error": str(e)})
+
+    return {"checked": True, "new_replies": len(real_replies), "processed": processed}
+
+
+@app.post("/browser/login/{platform}")
+async def browser_login(platform: str):
+    """
+    Opens a visible browser window so Katy can log into LinkedIn, Facebook, or Instagram.
+    Saves the session — agents will use it for outreach.
+    Supported platforms: linkedin, facebook, instagram
+    """
+    from tools.browser import browser_tool
+    if not browser_tool.browser:
+        started = await browser_tool.start()
+        if not started:
+            return {"ok": False, "error": "Playwright not available"}
+
+    result = await browser_tool.login_flow(platform)
+    return {"ok": True, "message": result}
+
+
+@app.post("/browser/send-dm")
+async def browser_send_dm(request: Request):
+    """
+    Send a direct message as Katy via LinkedIn, Facebook, or Instagram.
+    Body: {platform, target, message}
+      - linkedin:  target = profile URL
+      - facebook:  target = page/profile URL
+      - instagram: target = @username (no @)
+    Requires the session for that platform to be saved first via /browser/login/{platform}.
+    """
+    data = await request.json()
+    platform = (data.get("platform") or "").lower().strip()
+    target   = (data.get("target") or "").strip()
+    message  = (data.get("message") or "").strip()
+
+    if not platform or not target or not message:
+        return {"sent": False, "error": "platform, target, and message are required"}
+
+    from tools.browser import browser_tool
+    if not browser_tool.browser:
+        await browser_tool.start()
+
+    if platform == "linkedin":
+        result = await browser_tool.linkedin_send_dm(target, message)
+    elif platform == "facebook":
+        result = await browser_tool.facebook_send_message(target, message)
+    elif platform == "instagram":
+        result = await browser_tool.instagram_send_dm(target, message)
+    else:
+        return {"sent": False, "error": f"Unknown platform: {platform}. Use linkedin, facebook, or instagram."}
+
+    log_event("outreach", "action", f"DM via {platform} to {target}: sent={result.get('sent')}")
+    return result
 
 
 if __name__ == "__main__":
