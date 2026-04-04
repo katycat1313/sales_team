@@ -2749,5 +2749,95 @@ async def sms_inbound(request: Request):
     )
 
 
+@app.post("/stripe/webhook")
+async def stripe_webhook(request: Request):
+    """
+    Stripe posts here when a payment is completed.
+    When a client pays the 50% deposit, Katy gets notified immediately via Telegram + SMS.
+    Set this URL in Stripe Dashboard → Developers → Webhooks.
+    """
+    payload = await request.body()
+    sig_header = request.headers.get("stripe-signature", "")
+    webhook_secret = os.getenv("STRIPE_WEBHOOK_SECRET", "")
+
+    try:
+        import stripe as _stripe
+        _stripe.api_key = os.getenv("STRIPE_SECRET_KEY", "")
+
+        if webhook_secret:
+            event = _stripe.Webhook.construct_event(payload, sig_header, webhook_secret)
+        else:
+            import json
+            event = json.loads(payload)
+
+        if event.get("type") in ("payment_intent.succeeded", "checkout.session.completed", "payment_link.completed"):
+            data = event.get("data", {}).get("object", {})
+            amount = data.get("amount_received") or data.get("amount_total") or 0
+            amount_dollars = amount / 100
+            customer_email = (
+                data.get("customer_email")
+                or data.get("receipt_email")
+                or (data.get("customer_details") or {}).get("email")
+                or "unknown"
+            )
+            meta = data.get("metadata") or {}
+            business_name = meta.get("business_name") or customer_email
+            contact_name = meta.get("contact_name") or ""
+
+            msg = (
+                f"💰 DEPOSIT RECEIVED — ${amount_dollars:,.2f}\n"
+                f"Client: {business_name}"
+                + (f" ({contact_name})" if contact_name else "")
+                + f"\nEmail: {customer_email}\n"
+                f"Begin building within 24 hours."
+            )
+
+            log_event("stripe", "action", msg)
+
+            # Notify via Telegram
+            katy_id = os.getenv("KATY_TELEGRAM_ID", "")
+            bot_token = os.getenv("TELEGRAM_BOT_TOKEN", "")
+            if katy_id and bot_token:
+                try:
+                    async with httpx.AsyncClient() as client:
+                        await client.post(
+                            f"https://api.telegram.org/bot{bot_token}/sendMessage",
+                            json={"chat_id": katy_id, "text": msg},
+                            timeout=10,
+                        )
+                except Exception:
+                    pass
+
+            # Notify via SMS
+            katy_phone = os.getenv("KATY_PHONE", "")
+            if katy_phone:
+                try:
+                    from tools.sms_tool import send_sms
+                    send_sms(to_number=katy_phone, body=msg[:160])
+                except Exception:
+                    pass
+
+            # Update prospect in Google Sheet
+            try:
+                from tools.sheets_tool import push_prospect_sync
+                push_prospect_sync({
+                    "business_name": business_name,
+                    "phone": meta.get("prospect_phone", ""),
+                    "last_call_outcome": "won",
+                    "call_temperature": "hot",
+                    "buyer_intent_score": 10,
+                    "next_action": "build",
+                    "call_result_summary": f"Deposit paid ${amount_dollars:,.2f}",
+                })
+            except Exception:
+                pass
+
+        return {"received": True}
+
+    except Exception as e:
+        log_event("stripe", "warn", f"Webhook error: {e}")
+        return {"received": False, "error": str(e)}
+
+
 if __name__ == "__main__":
     uvicorn.run("main:app", host="0.0.0.0", port=8000, reload=True)
