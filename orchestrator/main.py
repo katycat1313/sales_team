@@ -29,6 +29,7 @@ if _gac:
 
 from agents.coordinator import CoordinatorAgent
 from agents.research import ResearchAgent
+from agents.research_assistant import ResearchAssistantAgent
 from agents.small_biz_expert import SmallBizExpertAgent
 from agents.sales import SalesAgent, SalesOpsAgent
 from agents.outreach import OutreachAgent
@@ -40,7 +41,11 @@ from agents.marketing import MarketingAgent
 from agents.biz_dev import BizDevAgent
 from agents.automations import AutomationsAgent
 from agents.solutions_architect import SolutionsArchitectAgent
-from agents.research_assistant import ResearchAssistantAgent
+from agents.gbp_scout import GBPScoutAgent
+from agents.gbp_researcher import GBPResearcherAgent
+from agents.gbp_sales import GBPSalesAgent
+from agents.closer import CloserAgent
+from agents.demo_agent import DemoAgent
 from scheduler import scheduler
 from memory.memory import init_db, get_memory_summary
 from task_handler import TaskHandler
@@ -63,22 +68,31 @@ scheduled_events_runner = None
 
 # Full agent roster
 AGENT_MAP = {
-    "coordinator":          lambda b,l,a: CoordinatorAgent(b,l,a),
-    "outreach":             lambda b,l,a: OutreachAgent(b,l,a),
-    "sales":                lambda b,l,a: SalesAgent(b,l,a),
-    "sales_ops":            lambda b,l,a: SalesOpsAgent(b,l,a),
-    # ── General-purpose agents ───────────────────────────
-    "small_biz_expert":     lambda b,l,a: SmallBizExpertAgent(b,l,a),
+    # ── Prospecting & Research ────────────────────────────
+    "gbp_scout":            lambda b,l,a: GBPScoutAgent(b,l,a),
+    "gbp_researcher":       lambda b,l,a: GBPResearcherAgent(b,l,a),
+    "lead_gen":             lambda b,l,a: LeadGenAgent(b,l,a),
     "research":             lambda b,l,a: ResearchAgent(b,l,a),
     "research_assistant":   lambda b,l,a: ResearchAssistantAgent(b,l,a),
-    "engineer":             lambda b,l,a: EngineerAgent(b,l,a),
-    "team_leader":          lambda b,l,a: TeamLeaderAgent(b,l,a),
+    "small_biz_expert":     lambda b,l,a: SmallBizExpertAgent(b,l,a),
+    # ── Outreach & Relationships ──────────────────────────
+    "outreach":             lambda b,l,a: OutreachAgent(b,l,a),
     "networking":           lambda b,l,a: NetworkingAgent(b,l,a),
-    "lead_gen":             lambda b,l,a: LeadGenAgent(b,l,a),
+    # ── Sales & Closing ───────────────────────────────────
+    "sales":                lambda b,l,a: SalesAgent(b,l,a),
+    "sales_ops":            lambda b,l,a: SalesOpsAgent(b,l,a),
+    "gbp_sales":            lambda b,l,a: GBPSalesAgent(b,l,a),
+    "closer":               lambda b,l,a: CloserAgent(b,l,a),
+    "demo":                 lambda b,l,a: DemoAgent(b,l,a),
+    # ── Strategy & Marketing ──────────────────────────────
     "marketing":            lambda b,l,a: MarketingAgent(b,l,a),
     "biz_dev":              lambda b,l,a: BizDevAgent(b,l,a),
     "automations":          lambda b,l,a: AutomationsAgent(b,l,a),
     "solutions_architect":  lambda b,l,a: SolutionsArchitectAgent(b,l,a),
+    # ── Infrastructure ────────────────────────────────────
+    "engineer":             lambda b,l,a: EngineerAgent(b,l,a),
+    "team_leader":          lambda b,l,a: TeamLeaderAgent(b,l,a),
+    "coordinator":          lambda b,l,a: CoordinatorAgent(b,l,a),
 }
 
 def log_event(agent: str, event_type: str, content: str):

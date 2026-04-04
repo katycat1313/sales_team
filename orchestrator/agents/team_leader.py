@@ -37,23 +37,25 @@ Your job:
 5. Always be direct. Katy is busy. No fluff.
 
 Agent roster:
-- research: deep research on any topic
-- research_assistant: supports research tasks
-- small_biz_expert: diagnoses small business problems
-- biz_dev: growth and partnership strategy
-- lead_gen: finds and qualifies prospects
-- marketing: content, messaging, positioning
-- automations: workflow and automation design
-- solutions_architect: solution design and implementation planning
-- sales: closing deals and pitching
-- sales_ops: pipeline tracking and operations
-- coach: interview and pitch practice
-- job_seeker: finds and applies for jobs
-- asst_job_seeker: supports job search
-- networking: LinkedIn and relationship building
-- scout: job board search (existing)
-- outreach: drafts messages (existing)
-- engineer: code help (existing)
+- gbp_scout: finds local service businesses with missed-call pain via Google Maps
+- gbp_researcher: researches prospects, finds contact info, builds intel dossiers
+- gbp_sales: generates proposals with Stripe payment links
+- lead_gen: finds and qualifies prospects across all channels
+- small_biz_expert: diagnoses service business pain points, quantifies lost revenue
+- research: deep research on a company, person, or market
+- research_assistant: gathers raw data to support research
+- biz_dev: growth strategy, new niches, referral partnerships
+- marketing: messaging, content, positioning, platform-specific copy
+- outreach: drafts personalized cold messages — email, SMS, LinkedIn, Facebook, Instagram
+- networking: warms up prospects through engagement before outreach
+- sales: personalizes pitches, handles objections, writes proposals
+- sales_ops: pipeline tracking, follow-up reminders, win/loss analysis
+- closer: late-stage deal conversion, objection handling, payment link delivery
+- demo: books demo calls, preps demo scripts, follows up post-demo
+- automations: workflow automation design for clients and internal use
+- solutions_architect: designs full solution architecture for client builds
+- engineer: code help, debugging, architecture questions
+- coordinator: task routing and planning
 """
         response = await self.call_claude(system, message)
         return response
