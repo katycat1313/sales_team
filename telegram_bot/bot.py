@@ -54,14 +54,19 @@ async def status(update: Update, context: ContextTypes.DEFAULT_TYPE):
     async with httpx.AsyncClient() as client:
         r = await client.get(f"{ORCHESTRATOR_URL}/status")
         d = r.json()
-    mem = d.get("memory", {})
+    mem   = d.get("memory", {})
+    usage = d.get("token_usage", {})
+    cost  = usage.get("estimated_cost_usd", 0)
+    total = usage.get("total_tokens", 0)
     await update.message.reply_text(
         f"📊 <b>Agent Team Status</b>\n\n"
         f"✅ Online: {d['online']}\n"
-        f"📝 Events logged: {d['events_logged']}\n"
         f"⏳ Pending approvals: {d['pending_approvals']}\n"
         f"👥 Prospects in pipeline: {mem.get('prospects_total', 0)}\n"
-        f"✅ Tasks today: {mem.get('tasks_today', 0)}",
+        f"✅ Tasks today: {mem.get('tasks_today', 0)}\n\n"
+        f"💰 <b>Session API usage</b>\n"
+        f"Tokens used: {total:,}\n"
+        f"Est. cost: ~${cost:.4f}",
         parse_mode="HTML"
     )
 

@@ -1257,11 +1257,18 @@ async def cancel_scheduled_event(event_id: int):
 
 @app.get("/status")
 def get_status():
+    from agents.base import get_token_usage
     mem = get_memory_summary()
-    return {"online": True, "agents": len(AGENT_MAP), "events_logged": len(event_stream),
-            "pending_approvals": len([a for a in approval_queue if a["status"]=="pending"]),
-            "scheduled_events": len([s for s in scheduled_events if s.get("status") in {"scheduled", "running"}]),
-            "brief_loaded": len(KATY_BRIEF) > 0, "memory": mem}
+    return {
+        "online": True,
+        "agents": len(AGENT_MAP),
+        "events_logged": len(event_stream),
+        "pending_approvals": len([a for a in approval_queue if a["status"] == "pending"]),
+        "scheduled_events": len([s for s in scheduled_events if s.get("status") in {"scheduled", "running"}]),
+        "brief_loaded": len(KATY_BRIEF) > 0,
+        "memory": mem,
+        "token_usage": get_token_usage(),
+    }
 
 @app.get("/availability")
 def get_availability():
