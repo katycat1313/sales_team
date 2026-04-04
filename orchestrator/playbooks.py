@@ -2,7 +2,6 @@ from typing import Any, Callable
 
 from memory.memory import (
     get_contacts,
-    get_jobs,
     get_memory_summary,
     get_prospects,
     get_recent_tasks,
@@ -10,12 +9,12 @@ from memory.memory import (
 
 
 PLAYBOOKS = {
-    "job-hunt": {"title": "Full Job Hunt"},
-    "client-pipeline": {"title": "Client Pipeline"},
-    "interview-ready": {"title": "Interview Ready"},
-    "automation-audit": {"title": "Automation Audit"},
-    "weekly-debrief": {"title": "Weekly Debrief"},
-    "target-company": {"title": "Target a Company"},
+    "client-pipeline":   {"title": "Client Pipeline — Find & Pitch"},
+    "prospect-funnel":   {"title": "Prospect Funnel — Nurture to Demo"},
+    "target-company":    {"title": "Target a Specific Company"},
+    "automation-audit":  {"title": "Automation Audit"},
+    "weekly-debrief":    {"title": "Weekly Debrief"},
+    "demo-to-close":     {"title": "Demo to Close"},
 }
 
 
@@ -34,37 +33,32 @@ class PlaybookRunner:
     async def run(self, playbook_id: str, body: dict | None = None) -> dict[str, Any]:
         payload = body or {}
         runners = {
-            "job-hunt": self._run_job_hunt,
-            "client-pipeline": self._run_client_pipeline,
-            "interview-ready": self._run_interview_ready,
+            "client-pipeline":  self._run_client_pipeline,
+            "prospect-funnel":  self._run_prospect_funnel,
+            "target-company":   self._run_target_company,
             "automation-audit": self._run_automation_audit,
-            "weekly-debrief": self._run_weekly_debrief,
-            "target-company": self._run_target_company,
+            "weekly-debrief":   self._run_weekly_debrief,
+            "demo-to-close":    self._run_demo_to_close,
         }
         runner = runners.get(playbook_id)
         if not runner:
             raise ValueError(f"Unknown playbook: {playbook_id}")
         return await runner(payload)
 
+    # ── Internal helpers ──────────────────────────────────────────────────────
+
     async def _run_steps(self, playbook_id: str, steps: list[dict[str, Any]]) -> dict[str, Any]:
         title = PLAYBOOKS[playbook_id]["title"]
         self.log_event("playbook", "action", f"Launching {title}")
-
         outputs = []
         for step in steps:
             task_factory = step["task"]
             task = task_factory(outputs) if callable(task_factory) else task_factory
             result = await self.task_handler.run_agent(step["agent"], task)
             outputs.append({"agent": step["agent"], "task": task, "result": result})
-
         summary = self._build_summary(title, outputs)
         self.log_event("playbook", "result", summary[:400])
-        return {
-            "playbook": playbook_id,
-            "title": title,
-            "summary": summary,
-            "steps": outputs,
-        }
+        return {"playbook": playbook_id, "title": title, "summary": summary, "steps": outputs}
 
     def _runtime(self) -> dict[str, Any]:
         try:
@@ -83,209 +77,263 @@ class PlaybookRunner:
     def _format_prospects(self, prospects: list[dict[str, Any]]) -> str:
         if not prospects:
             return "None in memory."
-
         lines = []
-        for prospect in prospects:
-            issues = prospect.get("gbp_issues") or prospect.get("research_notes") or prospect.get("notes") or ""
-            issues_text = str(issues).replace("\n", " ").strip()
-            if len(issues_text) > 140:
-                issues_text = issues_text[:137] + "..."
+        for p in prospects:
+            issues = str(p.get("gbp_issues") or p.get("research_notes") or p.get("notes") or "").replace("\n", " ").strip()
             lines.append(
-                "- {business} | {location} | {niche} | priority={priority} | issues={issues}".format(
-                    business=prospect.get("business_name", "Unknown business"),
-                    location=prospect.get("location", "Unknown location"),
-                    niche=prospect.get("niche", "unknown niche"),
-                    priority=prospect.get("priority", "WARM"),
-                    issues=issues_text or "not captured yet",
-                )
+                f"- {p.get('business_name','?')} | {p.get('location','?')} | {p.get('niche','?')} "
+                f"| priority={p.get('priority','WARM')} | phone={p.get('phone','')} "
+                f"| score={p.get('buyer_intent_score') or p.get('gbp_score','')} "
+                f"| issues={issues[:120] or 'not captured'}"
             )
         return "\n".join(lines)
-
-    def _format_jobs(self, jobs: list[dict[str, Any]]) -> str:
-        if not jobs:
-            return "None in memory."
-        return "\n".join(
-            f"- {job.get('title', 'Unknown role')} | {job.get('company', 'Unknown company')} | {job.get('location', 'Unknown location')} | {job.get('salary', 'salary n/a')}"
-            for job in jobs[:8]
-        )
 
     def _format_contacts(self, contacts: list[dict[str, Any]]) -> str:
         if not contacts:
             return "None in memory."
         return "\n".join(
-            f"- {contact.get('name', 'Unknown')} | {contact.get('company', 'Unknown company')} | {contact.get('title', 'title n/a')} | {contact.get('platform', 'platform n/a')}"
-            for contact in contacts[:8]
-        )
-
-    def _format_recent_tasks(self, tasks: list[dict[str, Any]]) -> str:
-        if not tasks:
-            return "None recorded."
-        return "\n".join(
-            f"- {task.get('agent', 'unknown')}: {str(task.get('task', ''))[:110]}"
-            for task in tasks[:10]
+            f"- {c.get('name','?')} | {c.get('company','?')} | {c.get('title','?')} | {c.get('platform','?')}"
+            for c in contacts[:8]
         )
 
     def _results_context(self, outputs: list[dict[str, Any]]) -> str:
         if not outputs:
             return "No prior agent output yet."
-        return "\n\n".join(
-            f"[{item['agent']}]\n{item['result']}" for item in outputs
-        )
+        return "\n\n".join(f"[{item['agent']}]\n{item['result']}" for item in outputs)
 
     def _build_summary(self, title: str, outputs: list[dict[str, Any]]) -> str:
         if not outputs:
             return f"{title} finished with no agent output."
         last = outputs[-1]["result"].strip().replace("\n", " ")
-        if len(last) > 320:
-            last = last[:317] + "..."
-        return f"{title} completed via {', '.join(item['agent'] for item in outputs)}. {last}"
+        return f"{title} completed via {', '.join(item['agent'] for item in outputs)}. {last[:320]}"
 
-    async def _run_job_hunt(self, _payload: dict[str, Any]) -> dict[str, Any]:
-        known_jobs = self._format_jobs(get_jobs())
-        known_contacts = self._format_contacts(get_contacts())
+    # ── Playbooks ─────────────────────────────────────────────────────────────
+
+    async def _run_client_pipeline(self, payload: dict[str, Any]) -> dict[str, Any]:
+        """
+        Full top-of-funnel: scan Google Maps for real service businesses →
+        research each one → diagnose pain → craft personalized pitch → queue outreach.
+        """
+        niche = str(payload.get("niche", "plumbers")).strip()
+        location = str(payload.get("location", "Charleston WV")).strip()
         steps = [
             {
-                "agent": "scout",
+                "agent": "gbp_scout",
                 "task": (
-                    "Run the Full Job Hunt playbook for Katy Casto. Find 8 NEW roles posted recently that match her real background: "
-                    "AI application development, React, TypeScript, JavaScript, Python, Supabase, Claude API, Gemini, Docker, "
-                    "and 10+ years of digital marketing. Prioritize remote roles or roles near Charleston/Belle WV paying at least "
-                    "$35/hr or $50k salary. Return concrete listings only, no generic advice. Existing jobs in memory:\n"
-                    f"{known_jobs}"
+                    f"Scan Google Maps for {niche} businesses in {location}. Find 8 real service businesses "
+                    f"that show signs of missed-call pain: no website, low reviews, unclaimed profile, or gaps in "
+                    f"online presence. Return business name, phone, address, website, and specific issues found. "
+                    f"Real data only — no invented businesses."
                 ),
             },
             {
-                "agent": "job_seeker",
+                "agent": "gbp_researcher",
                 "task": lambda outputs: (
-                    "Review the scout findings below and choose the top 5 opportunities by fit, pay, and interview likelihood. "
-                    "For each one, explain the exact angle Katy should lead with in an application.\n\n"
+                    "For each business found by the scout below, research deeper: find the owner name if possible, "
+                    "confirm the phone number, check their website quality, read their reviews for pain signals, "
+                    "and score each one by how urgently they need an AI answering service. Rank them HOT / WARM / COLD.\n\n"
                     f"{self._results_context(outputs)}"
                 ),
             },
             {
-                "agent": "resume_builder",
+                "agent": "small_biz_expert",
                 "task": lambda outputs: (
-                    "Using the prioritized roles below, draft tailored resume bullet updates and cover-letter angles for the top 3 roles. "
-                    "Do not invent experience. Queue any approval needed before submission.\n\n"
-                    f"Existing recruiter/contact memory:\n{known_contacts}\n\n"
+                    "Using the researched prospects below, identify the single most compelling pain point for each "
+                    "business and the best outreach hook. Be specific — reference their actual reviews, missing info, "
+                    "or call handling gap.\n\n"
                     f"{self._results_context(outputs)}"
                 ),
             },
             {
-                "agent": "networking",
+                "agent": "sales",
                 "task": lambda outputs: (
-                    "Using the top roles and tailored application angles below, draft warm recruiter or hiring-manager outreach messages "
-                    "for the top 3 roles. Require approval before sending anything.\n\n"
-                    f"Existing contact memory:\n{known_contacts}\n\n"
+                    "Write a short, personalized cold pitch for each HOT and WARM business below. "
+                    "Lead with their specific pain. Mention one concrete outcome of using Katy's AI answering service. "
+                    "No generic copy. Each pitch must feel written for that business only.\n\n"
+                    f"{self._results_context(outputs)}"
+                ),
+            },
+            {
+                "agent": "outreach",
+                "task": lambda outputs: (
+                    "Turn the pitches below into ready-to-send outreach drafts. For each business produce: "
+                    "(1) a cold email subject + body, (2) an SMS opener if phone available. "
+                    "Queue all drafts for Katy's approval before sending. No placeholders.\n\n"
                     f"{self._results_context(outputs)}"
                 ),
             },
         ]
-        return await self._run_steps("job-hunt", steps)
-
-    async def _run_client_pipeline(self, _payload: dict[str, Any]) -> dict[str, Any]:
-        prospects = self._top_prospects(limit=5)
-        steps = []
-
-        if not prospects:
-            steps.extend(
-                [
-                    {
-                        "agent": "lead_gen",
-                        "task": (
-                            "Run the Client Pipeline playbook. There are no HOT or WARM prospects in memory, so find 5 real local service "
-                            "businesses likely to miss inbound calls and need faster lead response. Return only real businesses with clear sales opportunity and priority scores."
-                        ),
-                    },
-                    {
-                        "agent": "research_assistant",
-                        "task": lambda outputs: (
-                            "Enrich the newly found prospects below with owner/contact details and concrete proof of missed-call pain points so the "
-                            "next agents can pitch real businesses for the Missed-Call-Revenue service.\n\n"
-                            f"{self._results_context(outputs)}"
-                        ),
-                    },
-                ]
-            )
-
-        prospect_context = self._format_prospects(prospects)
-        steps.extend(
-            [
-                {
-                    "agent": "small_biz_expert",
-                    "task": lambda outputs: (
-                        "Run the Client Pipeline playbook. Use only real prospects. Diagnose the top 3 pain points per business and explain "
-                        "the best outreach hook for each.\n\n"
-                        f"Prospects from memory:\n{prospect_context}\n\n"
-                        f"Prior outputs:\n{self._results_context(outputs)}"
-                    ),
-                },
-                {
-                    "agent": "solutions_architect",
-                    "task": lambda outputs: (
-                        "Design the fix package for each real client prospect below, including scope, implementation approach, and realistic "
-                        "monthly pricing.\n\n"
-                        f"{self._results_context(outputs)}"
-                    ),
-                },
-                {
-                    "agent": "sales",
-                    "task": lambda outputs: (
-                        "Write a concise, personalized pitch for each real business below. The pitch must call out one specific issue and "
-                        "connect it to Katy's solution.\n\n"
-                        f"{self._results_context(outputs)}"
-                    ),
-                },
-                {
-                    "agent": "outreach",
-                    "task": lambda outputs: (
-                        "Turn the sales pitches below into outreach drafts queued for Katy's approval. Use real business names and avoid "
-                        "placeholder copy.\n\n"
-                        f"{self._results_context(outputs)}"
-                    ),
-                },
-            ]
-        )
         return await self._run_steps("client-pipeline", steps)
 
-    async def _run_interview_ready(self, _payload: dict[str, Any]) -> dict[str, Any]:
+    async def _run_prospect_funnel(self, _payload: dict[str, Any]) -> dict[str, Any]:
+        """
+        Takes existing prospects already in memory and moves them forward:
+        follow up with those who haven't replied, send demo to warm ones,
+        push hot ones toward a decision.
+        """
+        prospects = self._top_prospects(limit=8)
+        prospect_context = self._format_prospects(prospects)
+        contacts = self._format_contacts(get_contacts())
+
+        if not prospects:
+            return {
+                "playbook": "prospect-funnel",
+                "title": PLAYBOOKS["prospect-funnel"]["title"],
+                "summary": "No prospects in memory. Run client-pipeline first to fill the funnel.",
+                "steps": [],
+            }
+
         steps = [
             {
-                "agent": "coach",
+                "agent": "sales_ops",
                 "task": (
-                    "Run the Interview Ready playbook for Katy Casto. Build a prep plan for AI Application Developer and Solutions "
-                    "Implementation Specialist roles. Cover technical depth, project walkthroughs, system design, behavioral answers, and "
-                    "salary framing based on her real stack and projects."
+                    "Review the current prospect pipeline below. Identify who needs a follow-up, who is warm enough "
+                    "for a demo invitation, and who is stalled. Give a clear recommended next action for each.\n\n"
+                    f"Prospects:\n{prospect_context}\n\nContacts:\n{contacts}"
                 ),
             },
             {
-                "agent": "interview_coach",
+                "agent": "sales",
                 "task": lambda outputs: (
-                    "Use the prep plan below to begin an interview practice session. Ask the strongest first question, provide a model "
-                    "answer framework Katy can study, and note what she should emphasize.\n\n"
+                    "Based on the pipeline review below, write the follow-up message for each prospect that needs one. "
+                    "For warm prospects, write a demo invitation. For hot prospects, write a close message with a "
+                    "clear call to action. Personalize every message to that specific business.\n\n"
+                    f"{self._results_context(outputs)}"
+                ),
+            },
+            {
+                "agent": "outreach",
+                "task": lambda outputs: (
+                    "Format the follow-up messages below into ready-to-send drafts via email or SMS as appropriate. "
+                    "Include demo link where relevant. Queue all for Katy's approval before sending.\n\n"
                     f"{self._results_context(outputs)}"
                 ),
             },
         ]
-        return await self._run_steps("interview-ready", steps)
+        return await self._run_steps("prospect-funnel", steps)
+
+    async def _run_demo_to_close(self, payload: dict[str, Any]) -> dict[str, Any]:
+        """
+        Takes a prospect who has seen the demo and is evaluating.
+        Builds a personalized close strategy and sends payment link when ready.
+        """
+        business_name = str(payload.get("business_name", "")).strip()
+        prospects = self._top_prospects(limit=8)
+        if business_name:
+            match = next((p for p in prospects if business_name.lower() in p.get("business_name", "").lower()), None)
+            target = match or {}
+        else:
+            target = next((p for p in prospects if str(p.get("buyer_intent_score", 0)) >= "7"), {})
+
+        if not target:
+            return {
+                "playbook": "demo-to-close",
+                "title": PLAYBOOKS["demo-to-close"]["title"],
+                "summary": "No qualifying prospect found. Specify business_name or run prospect-funnel first.",
+                "steps": [],
+            }
+
+        biz = target.get("business_name", business_name)
+        context = self._format_prospects([target])
+
+        steps = [
+            {
+                "agent": "research",
+                "task": (
+                    f"Research {biz} deeply right now. Find their current call handling setup, how many services they offer, "
+                    f"what their reviews say about responsiveness, and any recent news. This intel will be used to close a sale.\n\n"
+                    f"What we know so far:\n{context}"
+                ),
+            },
+            {
+                "agent": "small_biz_expert",
+                "task": lambda outputs: (
+                    f"Using the research below about {biz}, identify the strongest ROI argument for why they need "
+                    f"Katy's AI answering service right now. Quantify the missed revenue if possible.\n\n"
+                    f"{self._results_context(outputs)}"
+                ),
+            },
+            {
+                "agent": "sales",
+                "task": lambda outputs: (
+                    f"Write a closing message for {biz}. They've seen the demo. Address their specific hesitation, "
+                    f"reinforce the ROI, and end with a direct call to action — either reply to confirm the tier or "
+                    f"a payment link will be sent. Recommend the right tier based on their business size.\n\n"
+                    f"{self._results_context(outputs)}"
+                ),
+            },
+            {
+                "agent": "outreach",
+                "task": lambda outputs: (
+                    f"Turn the closing message below into a final outreach draft for {biz} — email + SMS version. "
+                    f"Queue for Katy's approval. If approved, the payment link goes out immediately.\n\n"
+                    f"{self._results_context(outputs)}"
+                ),
+            },
+        ]
+        return await self._run_steps("demo-to-close", steps)
+
+    async def _run_target_company(self, payload: dict[str, Any]) -> dict[str, Any]:
+        """Deep research + personalized pitch for one specific business."""
+        company = str(payload.get("company", "")).strip()
+        if not company:
+            raise ValueError("company name is required")
+
+        steps = [
+            {
+                "agent": "gbp_researcher",
+                "task": (
+                    f"Research {company} in depth: website, reviews, Google Business Profile status, "
+                    f"call handling signals, owner name if findable, social presence, and any visible pain points "
+                    f"around missed calls or slow lead response. Return concrete facts only."
+                ),
+            },
+            {
+                "agent": "small_biz_expert",
+                "task": lambda outputs: (
+                    f"Using the research below about {company}, pinpoint the top 2 pain points Katy's AI answering "
+                    f"service solves for them specifically. Identify the best outreach hook.\n\n"
+                    f"{self._results_context(outputs)}"
+                ),
+            },
+            {
+                "agent": "sales",
+                "task": lambda outputs: (
+                    f"Write a personalized pitch for {company}. Reference real facts from the research. "
+                    f"Lead with their pain, present the solution, and end with a clear next step.\n\n"
+                    f"{self._results_context(outputs)}"
+                ),
+            },
+            {
+                "agent": "outreach",
+                "task": lambda outputs: (
+                    f"Turn the pitch below into approval-ready outreach for {company}: cold email + SMS version. "
+                    f"Queue for Katy's review before sending.\n\n"
+                    f"{self._results_context(outputs)}"
+                ),
+            },
+        ]
+        return await self._run_steps("target-company", steps)
 
     async def _run_automation_audit(self, _payload: dict[str, Any]) -> dict[str, Any]:
+        """Identifies automation gaps in prospect businesses — doubles as upsell intel."""
         prospects = self._top_prospects(limit=5)
         prospect_context = self._format_prospects(prospects)
         steps = [
             {
                 "agent": "automations",
                 "task": (
-                    "Run the Automation Audit playbook. Use the real businesses below and identify at least 3 specific workflow pain points "
-                    "that can be automated for each.\n\n"
-                    f"Real prospects:\n{prospect_context}"
+                    "For each real business below, identify 3 specific workflow pain points that an AI answering "
+                    "service would fix. Focus on missed calls, slow lead response, after-hours gaps, and manual "
+                    "follow-up. Be specific to each business.\n\n"
+                    f"Prospects:\n{prospect_context}"
                 ),
             },
             {
                 "agent": "solutions_architect",
                 "task": lambda outputs: (
-                    "Turn the automation findings below into a full implementation plan with tools, workflow design, effort estimate, and "
-                    "pricing per business.\n\n"
+                    "Turn the automation findings below into a solution summary per business. Include which service "
+                    "tier fits best (Starter $97/mo, Standard $197/mo, Pro $297/mo) and why.\n\n"
                     f"{self._results_context(outputs)}"
                 ),
             },
@@ -293,67 +341,33 @@ class PlaybookRunner:
         return await self._run_steps("automation-audit", steps)
 
     async def _run_weekly_debrief(self, _payload: dict[str, Any]) -> dict[str, Any]:
+        """Sales team status: what happened, what's pending, what to do next."""
         memory_summary = get_memory_summary()
-        recent_tasks = self._format_recent_tasks(get_recent_tasks(limit=10))
+        recent_tasks = "\n".join(
+            f"- {t.get('agent','?')}: {str(t.get('task',''))[:110]}"
+            for t in get_recent_tasks(limit=10)
+        ) or "None recorded."
         prospects = self._format_prospects(self._top_prospects(limit=5))
         runtime = self._runtime()
-        scheduled = runtime.get("scheduled_events") or []
         pending_approvals = runtime.get("pending_approvals", 0)
+        scheduled = runtime.get("scheduled_events") or []
         scheduled_text = "\n".join(
-            f"- {item.get('agent', 'unknown')} @ {item.get('run_at', 'n/a')} :: {str(item.get('task', ''))[:120]}"
-            for item in scheduled[:5]
+            f"- {e.get('agent','?')} @ {e.get('run_at','?')}: {str(e.get('task',''))[:100]}"
+            for e in scheduled[:5]
         ) or "None scheduled."
 
         steps = [
             {
                 "agent": "team_leader",
                 "task": (
-                    "Generate the Weekly Debrief for Katy using the real system state below. Keep it factual, concise, and action-oriented.\n\n"
-                    f"Memory summary: {memory_summary}\n"
+                    "Generate the weekly sales debrief. Be direct and specific — what was accomplished, "
+                    "what is stalled, what needs Katy's attention right now, and the top 3 priorities for the week ahead.\n\n"
+                    f"Memory: {memory_summary}\n"
                     f"Pending approvals: {pending_approvals}\n"
-                    f"Upcoming scheduled events:\n{scheduled_text}\n\n"
-                    f"Top prospects:\n{prospects}\n\n"
-                    f"Recent agent activity:\n{recent_tasks}"
+                    f"Scheduled:\n{scheduled_text}\n"
+                    f"Top prospects:\n{prospects}\n"
+                    f"Recent activity:\n{recent_tasks}"
                 ),
             }
         ]
         return await self._run_steps("weekly-debrief", steps)
-
-    async def _run_target_company(self, payload: dict[str, Any]) -> dict[str, Any]:
-        company = str(payload.get("company", "")).strip()
-        if not company:
-            raise ValueError("company is required")
-
-        steps = [
-            {
-                "agent": "research",
-                "task": (
-                    f"Run the Target a Company playbook for {company}. Research the company deeply: website, offers, reviews, online "
-                    "presence, positioning, and any digital weaknesses. Surface specific facts only."
-                ),
-            },
-            {
-                "agent": "small_biz_expert",
-                "task": lambda outputs: (
-                    f"Using the research below about {company}, diagnose the top 3 business pain points Katy can solve and identify the "
-                    "strongest outreach hook.\n\n"
-                    f"{self._results_context(outputs)}"
-                ),
-            },
-            {
-                "agent": "sales",
-                "task": lambda outputs: (
-                    f"Using the research and diagnosis below, craft a concise personalized pitch for {company}. Reference a real issue and "
-                    "present a clear next step.\n\n"
-                    f"{self._results_context(outputs)}"
-                ),
-            },
-            {
-                "agent": "outreach",
-                "task": lambda outputs: (
-                    f"Turn the pitch below for {company} into an approval-ready outreach draft Katy can review before sending.\n\n"
-                    f"{self._results_context(outputs)}"
-                ),
-            },
-        ]
-        return await self._run_steps("target-company", steps)
