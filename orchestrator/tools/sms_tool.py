@@ -12,7 +12,7 @@ def send_sms(to_number: str, body: str, from_number: Optional[str] = None) -> di
     """
     try:
         sid = os.getenv("TWILIO_ACCOUNT_SID")
-        token = os.getenv("TWILIO_AUTH_TOKEN")
+        token = os.getenv("TWILIO_TOKEN") or os.getenv("TWILIO_AUTH_TOKEN")
         sender = from_number or os.getenv("TWILIO_PHONE_NUMBER")
 
         if not sid or not token:
