@@ -186,12 +186,146 @@ def _record_dnc_entry(phone: str, business_name: str, reason: str, source: str =
         "notes": notes,
     })
 
+# Actions that auto-send after 30 min if not rejected (replies to people who reached out first)
+_AUTO_APPROVE_ACTIONS = {"send_sms_reply", "send_email_reply"}
+
+# Actions that NEVER auto-send — always need explicit YES
+_MANUAL_ONLY_ACTIONS  = {
+    "send_outreach_message", "send_sales_proposal", "send_answering_service_proposal",
+    "send_close_message", "send_demo_message", "send_connection_or_message",
+    "send_connection_request", "publish_content",
+}
+
+AUTO_APPROVE_MINUTES = int(os.getenv("AUTO_APPROVE_MINUTES", "30"))
+
+
 def request_approval(agent: str, action: str, details: dict):
-    item = {"id": len(approval_queue)+1, "timestamp": datetime.now().isoformat(),
-            "agent": agent, "action": action, "details": details, "status": "pending"}
+    item = {
+        "id": len(approval_queue) + 1,
+        "timestamp": datetime.now().isoformat(),
+        "agent": agent,
+        "action": action,
+        "details": details,
+        "status": "pending",
+    }
+
+    # For auto-approvable actions, set a deadline
+    if action in _AUTO_APPROVE_ACTIONS:
+        send_at = datetime.now(timezone.utc) + timedelta(minutes=AUTO_APPROVE_MINUTES)
+        item["send_at"] = send_at.isoformat()
+        item["auto_approve"] = True
+
     approval_queue.append(item)
     log_event(agent, "approval_needed", f"{action}: {json.dumps(details)}")
+
+    # Fire-and-forget Telegram notification (non-blocking)
+    asyncio.get_event_loop().call_soon_threadsafe(
+        lambda: asyncio.ensure_future(_notify_approval_telegram(item))
+    )
     return item
+
+
+async def _notify_approval_telegram(item: dict):
+    """Send Telegram notification for a new approval item."""
+    bot_token = os.getenv("TELEGRAM_BOT_TOKEN", "")
+    katy_id   = os.getenv("KATY_TELEGRAM_ID", "")
+    if not bot_token or not katy_id:
+        return
+
+    details = item.get("details", {})
+    action  = item.get("action", "")
+    item_id = item.get("id", "?")
+
+    # Build a human-readable preview
+    preview = (
+        details.get("draft_reply")
+        or details.get("draft_preview")
+        or details.get("preview")
+        or str(details)[:200]
+    )
+
+    if item.get("auto_approve"):
+        footer = (
+            f"\n⏱ <b>Auto-sends in {AUTO_APPROVE_MINUTES} min</b> unless you cancel.\n"
+            f"Reply /no {item_id} to cancel."
+        )
+    else:
+        footer = f"\n/approve {item_id}  •  /no {item_id}"
+
+    business = details.get("business") or details.get("business_name") or ""
+    to       = details.get("to") or ""
+
+    msg = (
+        f"📋 <b>Approval #{item_id}</b> — {action.replace('_', ' ')}\n"
+        + (f"For: {business}" + (f" ({to})" if to else "") + "\n" if business or to else "")
+        + f"\n{preview[:400]}"
+        + footer
+    )
+
+    try:
+        async with httpx.AsyncClient(timeout=8) as client:
+            await client.post(
+                f"https://api.telegram.org/bot{bot_token}/sendMessage",
+                json={"chat_id": katy_id, "text": msg, "parse_mode": "HTML"},
+            )
+    except Exception as e:
+        log_event("system", "warn", f"Approval Telegram notify failed: {e}")
+
+
+async def _execute_approval(item: dict):
+    """Execute an approved action — called on explicit approve OR auto-approve timeout."""
+    action  = item.get("action", "")
+    details = item.get("details", {})
+
+    if action == "send_sms_reply":
+        to    = details.get("to", "")
+        draft = details.get("draft_reply", "")
+        if to and draft:
+            try:
+                from tools.sms_tool import send_sms
+                result = send_sms(to_number=to, body=draft[:160])
+                item["send_result"] = result
+                log_event("sales", "action", f"SMS reply sent to {to}: {result.get('sent')}")
+            except Exception as e:
+                log_event("sales", "warn", f"SMS send failed: {e}")
+
+    elif action == "send_email_reply":
+        to      = details.get("to", "")
+        subject = f"Re: {details.get('their_subject', 'Following up')}"
+        draft   = details.get("draft_reply", "")
+        if to and draft:
+            try:
+                from tools.gmail_tool import send_email
+                result = send_email(to=to, subject=subject, body=draft)
+                item["send_result"] = result
+                log_event("sales", "action", f"Email reply sent to {to}: {result.get('sent')}")
+            except Exception as e:
+                log_event("sales", "warn", f"Email send failed: {e}")
+
+
+async def _auto_approve_worker():
+    """Background task: checks every 2 min for timed-out approval items and executes them."""
+    while True:
+        await asyncio.sleep(120)
+        now = datetime.now(timezone.utc)
+        for item in approval_queue:
+            if item.get("status") != "pending":
+                continue
+            if not item.get("auto_approve"):
+                continue
+            send_at_str = item.get("send_at", "")
+            if not send_at_str:
+                continue
+            try:
+                send_at = datetime.fromisoformat(send_at_str)
+                if send_at.tzinfo is None:
+                    send_at = send_at.replace(tzinfo=timezone.utc)
+                if now >= send_at:
+                    item["status"] = "auto_approved"
+                    log_event("system", "action", f"Auto-approved #{item['id']}: {item['action']}")
+                    await _execute_approval(item)
+            except Exception as e:
+                log_event("system", "warn", f"Auto-approve worker error: {e}")
 
 
 SCHEDULED_EVENTS_PATH = LOG_DIR / "scheduled_events.json"
@@ -831,11 +965,10 @@ async def lifespan(app: FastAPI):
     init_db()
     _load_scheduled_events()
     scheduled_events_runner = asyncio.create_task(_scheduled_events_loop())
+    asyncio.create_task(_auto_approve_worker())
     log_event("system", "thought", f"Agent team starting up — {len(AGENT_MAP)} agents loading...")
     log_event("system", "thought", f"Katy's brief loaded ({len(KATY_BRIEF)} chars)")
-    # DISABLED: Auto scheduler — only manual API calls trigger now
-    # asyncio.create_task(scheduler.start())
-    log_event("system", "thought", "⚙️ Manual-only mode: waiting for your API requests")
+    log_event("system", "thought", f"Auto-approve: reply drafts send in {AUTO_APPROVE_MINUTES} min if not rejected")
     yield
     if scheduled_events_runner:
         scheduled_events_runner.cancel()
@@ -916,6 +1049,10 @@ async def approve_action(approval_id: int):
         if item["id"] == approval_id and item["status"] == "pending":
             item["status"] = "approved"
             log_event("system", "action", f"Katy approved: {item['action']}")
+            # Execute auto-approvable actions immediately on explicit YES
+            if item["action"] in _AUTO_APPROVE_ACTIONS:
+                await _execute_approval(item)
+                return {"status": "approved", "sent": item.get("send_result", {}).get("sent"), "item": item}
 
             # Auto-send email immediately on approval
             if item.get("action") == "send_email":

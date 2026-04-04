@@ -21,33 +21,31 @@ async def run_task(agent: str, task: str) -> str:
 async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
     if not is_katy(update): return
     await update.message.reply_text(
-        "🤖 *Katy's Agent Team — 15 Agents Online*\n\n"
-        "*Job Search*\n"
-        "/jobseeker — find + apply for jobs\n"
-        "/scout — search job boards\n"
-        "/networking — LinkedIn + connections\n"
-        "/coach — interview + pitch practice\n\n"
-        "*Business*\n"
-        "/research — deep dive on anything\n"
-        "/smallbiz — diagnose a business\n"
-        "/solutions — plan a solution\n"
-        "/automations — design a workflow\n"
-        "/bizdev — growth opportunities\n\n"
-        "*Sales*\n"
-        "/leadgen — find prospects\n"
-        "/sales — close a deal\n"
-        "/salesops — pipeline status\n"
-        "/marketing — craft messaging\n"
-        "/outreach — draft messages\n\n"
-        "*Support*\n"
-        "/resume — tailor resume for a role\n"
-        "/engineer — code help\n"
-        "/approvals — pending approvals\n"
-        "/approve [id] — approve action\n"
-        "/reject [id] — reject action\n"
+        "🤖 <b>Missed-Call-Revenue Agent Team</b>\n\n"
+        "<b>Find Clients</b>\n"
+        "/pipeline — scan Google Maps, research, build outreach\n"
+        "/linkedin — find + DM service business owners on LinkedIn\n"
+        "/leadgen — find and qualify prospects\n"
+        "/target [company] — deep research + pitch one specific business\n\n"
+        "<b>Close Deals</b>\n"
+        "/sales — pitch, objection handling, proposals\n"
+        "/closer — late-stage closing + objection scripts\n"
+        "/demo — book demos, follow up post-demo\n"
+        "/salesops — pipeline status report\n\n"
+        "<b>Outreach & Replies</b>\n"
+        "/outreach — draft personalized messages\n"
+        "/networking — warm up prospects before pitch\n"
+        "/marketing — platform-specific messaging + content\n\n"
+        "<b>Approvals</b>\n"
+        "/approvals — see what's waiting\n"
+        "/approve [id] — send it now\n"
+        "/no [id] — cancel it\n\n"
+        "<b>Strategy</b>\n"
+        "/bizdev — growth opportunities + new niches\n"
+        "/debrief — weekly sales debrief\n"
         "/status — team status\n\n"
-        "Or just type anything to talk to the team leader!",
-        parse_mode='Markdown'
+        "Or just type anything — team leader handles it.",
+        parse_mode="HTML"
     )
 
 async def status(update: Update, context: ContextTypes.DEFAULT_TYPE):
@@ -57,17 +55,16 @@ async def status(update: Update, context: ContextTypes.DEFAULT_TYPE):
         d = r.json()
     mem = d.get("memory", {})
     await update.message.reply_text(
-        f"📊 *Agent Team Status*\n\n"
+        f"📊 <b>Agent Team Status</b>\n\n"
         f"✅ Online: {d['online']}\n"
         f"📝 Events logged: {d['events_logged']}\n"
         f"⏳ Pending approvals: {d['pending_approvals']}\n"
-        f"💼 Jobs in memory: {mem.get('jobs_total', 0)}\n"
-        f"👥 Contacts found: {mem.get('contacts_total', 0)}\n"
+        f"👥 Prospects in pipeline: {mem.get('prospects_total', 0)}\n"
         f"✅ Tasks today: {mem.get('tasks_today', 0)}",
-        parse_mode='Markdown'
+        parse_mode="HTML"
     )
 
-# ── Agent command factory ──
+# ── Agent command factory ──────────────────────────────────────────────────────
 def make_cmd(agent: str, default_task: str, emoji: str):
     async def handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
         if not is_katy(update): return
@@ -75,11 +72,42 @@ def make_cmd(agent: str, default_task: str, emoji: str):
         await update.message.reply_text(f"{emoji} On it...")
         try:
             result = await run_task(agent, task)
-            await update.message.reply_text(f"{emoji} *{agent.replace('_',' ').title()}*\n\n{result[:4000]}", parse_mode='Markdown')
+            await update.message.reply_text(
+                f"{emoji} <b>{agent.replace('_',' ').title()}</b>\n\n{result[:4000]}",
+                parse_mode="HTML"
+            )
         except Exception as e:
             await update.message.reply_text(f"❌ Error: {e}")
     return handler
 
+# ── Playbook shortcuts ─────────────────────────────────────────────────────────
+def make_playbook_cmd(playbook_id: str, emoji: str):
+    async def handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
+        if not is_katy(update): return
+        await update.message.reply_text(f"{emoji} Starting {playbook_id} playbook...")
+        try:
+            # Parse optional key=value args (niche=plumbers location="Austin TX")
+            payload = {}
+            for arg in (context.args or []):
+                if "=" in arg:
+                    k, _, v = arg.partition("=")
+                    payload[k.strip()] = v.strip()
+                else:
+                    payload["company"] = arg  # for target-company playbook
+            async with httpx.AsyncClient(timeout=180) as client:
+                r = await client.post(
+                    f"{ORCHESTRATOR_URL}/playbook/{playbook_id}",
+                    json=payload,
+                    timeout=180,
+                )
+                data = r.json()
+            summary = data.get("summary", str(data))[:4000]
+            await update.message.reply_text(f"{emoji} <b>Done</b>\n\n{summary}", parse_mode="HTML")
+        except Exception as e:
+            await update.message.reply_text(f"❌ Error: {e}")
+    return handler
+
+# ── Approval commands ──────────────────────────────────────────────────────────
 async def approvals_cmd(update: Update, context: ContextTypes.DEFAULT_TYPE):
     if not is_katy(update): return
     async with httpx.AsyncClient() as client:
@@ -87,70 +115,99 @@ async def approvals_cmd(update: Update, context: ContextTypes.DEFAULT_TYPE):
         items = r.json()
     if not items:
         await update.message.reply_text("✅ No pending approvals!"); return
-    msg = "⏳ *Pending Approvals*\n\n"
+    msg = "⏳ <b>Pending Approvals</b>\n\n"
     for item in items:
-        msg += f"ID {item['id']}: {item['agent']} → {item['action']}\n"
-        msg += f"  _{str(item['details'])[:80]}_\n\n"
-    msg += "Use /approve [id] or /reject [id]"
-    await update.message.reply_text(msg, parse_mode='Markdown')
+        auto = " ⏱ auto-sends" if item.get("auto_approve") else ""
+        msg += f"<b>#{item['id']}</b>: {item['agent']} → {item['action']}{auto}\n"
+        details = item.get("details", {})
+        preview = (
+            details.get("draft_reply")
+            or details.get("draft_preview")
+            or details.get("preview")
+            or ""
+        )
+        if preview:
+            msg += f"<i>{str(preview)[:120]}</i>\n"
+        msg += "\n"
+    msg += "/approve [id]  •  /no [id]"
+    await update.message.reply_text(msg, parse_mode="HTML")
 
 async def approve_cmd(update: Update, context: ContextTypes.DEFAULT_TYPE):
     if not is_katy(update): return
-    if not context.args: await update.message.reply_text("Usage: /approve [id]"); return
-    async with httpx.AsyncClient() as client:
-        await client.post(f"{ORCHESTRATOR_URL}/approvals/{context.args[0]}/approve")
-    await update.message.reply_text(f"✅ Approved #{context.args[0]}")
+    if not context.args:
+        await update.message.reply_text("Usage: /approve [id]"); return
+    async with httpx.AsyncClient(timeout=30) as client:
+        r = await client.post(f"{ORCHESTRATOR_URL}/approvals/{context.args[0]}/approve")
+        data = r.json()
+    sent = data.get("sent")
+    if sent is True:
+        await update.message.reply_text(f"✅ Sent! (#{context.args[0]})")
+    elif sent is False:
+        await update.message.reply_text(f"✅ Approved #{context.args[0]} — but send failed. Check logs.")
+    else:
+        await update.message.reply_text(f"✅ Approved #{context.args[0]}")
 
-async def reject_cmd(update: Update, context: ContextTypes.DEFAULT_TYPE):
+async def no_cmd(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    """Cancel/reject an approval — /no [id]"""
     if not is_katy(update): return
-    if not context.args: await update.message.reply_text("Usage: /reject [id]"); return
+    if not context.args:
+        await update.message.reply_text("Usage: /no [id]"); return
     async with httpx.AsyncClient() as client:
         await client.post(f"{ORCHESTRATOR_URL}/approvals/{context.args[0]}/reject")
-    await update.message.reply_text(f"❌ Rejected #{context.args[0]}")
+    await update.message.reply_text(f"🚫 Cancelled #{context.args[0]}")
 
 async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
     if not is_katy(update): return
-    await update.message.reply_text("🧠 Team leader thinking...")
+    await update.message.reply_text("🧠 Thinking...")
     try:
         async with httpx.AsyncClient(timeout=90) as client:
-            r = await client.post(f"{ORCHESTRATOR_URL}/chat", json={"message": update.message.text, "agent": "team_leader"})
+            r = await client.post(
+                f"{ORCHESTRATOR_URL}/chat",
+                json={"message": update.message.text, "agent": "team_leader"}
+            )
             await update.message.reply_text(r.json()["response"][:4000])
     except Exception as e:
         await update.message.reply_text(f"❌ Error: {e}")
 
 def main():
     app = Application.builder().token(TELEGRAM_BOT_TOKEN).build()
-    app.add_handler(CommandHandler("start", start))
-    app.add_handler(CommandHandler("status", status))
-    app.add_handler(CommandHandler("approvals", approvals_cmd))
-    app.add_handler(CommandHandler("approve", approve_cmd))
-    app.add_handler(CommandHandler("reject", reject_cmd))
 
-    # All 15 agents as commands
+    app.add_handler(CommandHandler("start",     start))
+    app.add_handler(CommandHandler("status",    status))
+    app.add_handler(CommandHandler("approvals", approvals_cmd))
+    app.add_handler(CommandHandler("approve",   approve_cmd))
+    app.add_handler(CommandHandler("reject",    no_cmd))   # alias
+    app.add_handler(CommandHandler("no",        no_cmd))   # shorter, easier to type
+
+    # Playbook shortcuts
+    app.add_handler(CommandHandler("pipeline", make_playbook_cmd("client-pipeline",   "🔍")))
+    app.add_handler(CommandHandler("linkedin", make_playbook_cmd("linkedin-outreach", "💼")))
+    app.add_handler(CommandHandler("debrief",  make_playbook_cmd("weekly-debrief",    "📊")))
+    app.add_handler(CommandHandler("funnel",   make_playbook_cmd("prospect-funnel",   "🔄")))
+    app.add_handler(CommandHandler("target",   make_playbook_cmd("target-company",    "🎯")))
+
+    # Agent commands
     commands = [
-        ("jobseeker",   "job_seeker",         "Find the best job opportunities for Katy right now",                    "💼"),
-        ("scout",       "scout",              "Search all job boards for AI developer roles remote $50k+",             "🔍"),
-        ("networking",  "networking",         "Identify the best people for Katy to connect with on LinkedIn today",   "🔗"),
-        ("coach",       "coach",              "Start an interview practice session",                                    "🎯"),
-        ("research",    "research",           "Research the AI developer job market right now",                         "📚"),
-        ("smallbiz",    "small_biz_expert",   "Identify small businesses in the Charleston WV area with intake problems","🏪"),
-        ("solutions",   "solutions_architect","Design a solution for a small contractor intake problem",                "🏗️"),
-        ("automations", "automations",        "Identify automation opportunities for Katy's agent team internally",    "⚙️"),
-        ("bizdev",      "biz_dev",            "Identify new business opportunities Katy should pursue this week",      "📈"),
-        ("leadgen",     "lead_gen",           "Find and qualify 10 prospects for Katy's services",                     "🎯"),
-        ("sales",       "sales",              "Draft a pitch for Katy's AI intake form service",                       "💰"),
-        ("salesops",    "sales_ops",          "Give a pipeline status report",                                         "📊"),
-        ("marketing",   "marketing",          "Write a LinkedIn post showcasing CCPractice",                           "📣"),
-        ("outreach",    "outreach",           "Draft cold outreach to an AI startup recruiter",                        "✉️"),
-        ("resume",      "resume_builder",     "Tailor my resume for an AI developer role",                            "📄"),
-        ("engineer",    "engineer",           "Review the agent pipeline code for issues",                             "🔧"),
+        ("leadgen",     "lead_gen",          "Find and qualify 10 HOT prospects for Missed-Call-Revenue",            "🎯"),
+        ("sales",       "sales",             "Review the pipeline and write personalized pitches for warm prospects", "💰"),
+        ("closer",      "closer",            "Review warm prospects and write closing messages",                      "🤝"),
+        ("demo",        "demo",              "Check which prospects need a demo and draft booking messages",          "📞"),
+        ("salesops",    "sales_ops",         "Give a full pipeline status report",                                    "📊"),
+        ("outreach",    "outreach",          "Draft personalized cold outreach for the top HOT prospects",            "✉️"),
+        ("networking",  "networking",        "Find service business owners to warm up before outreach",               "🔗"),
+        ("marketing",   "marketing",         "Write a LinkedIn post about the cost of missed calls for trades businesses", "📣"),
+        ("bizdev",      "biz_dev",           "What are the fastest paths to Katy's first client this week?",          "📈"),
+        ("smallbiz",    "small_biz_expert",  "Analyze the missed-call pain for plumbers and HVAC businesses",         "🏪"),
+        ("research",    "research",          "Research the AI answering service market — who else is selling this?",  "📚"),
+        ("automations", "automations",       "What automations would help close deals faster?",                       "⚙️"),
+        ("engineer",    "engineer",          "Review the codebase for issues or improvements",                        "🔧"),
     ]
 
     for cmd, agent, default, emoji in commands:
         app.add_handler(CommandHandler(cmd, make_cmd(agent, default, emoji)))
 
     app.add_handler(MessageHandler(filters.TEXT & ~filters.COMMAND, handle_message))
-    print("🤖 Telegram bot online — 15 agents ready")
+    print("🤖 Telegram bot online — Missed-Call-Revenue agent team ready")
     app.run_polling()
 
 if __name__ == "__main__":
